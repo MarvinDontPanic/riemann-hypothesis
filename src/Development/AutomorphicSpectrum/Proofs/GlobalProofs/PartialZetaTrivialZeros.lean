@@ -121,7 +121,8 @@ private theorem orderAt_signature_quotient_eq (r c n : ℕ) (G Z : ℂ → ℂ) 
 private theorem classDiscriminant_ne_zero (F : Type) [Field F] [NumberField F] : (dF F : ℂ) ≠ 0 := by
   exact Complex.ofReal_ne_zero.mpr (abs_ne_zero.mpr (Int.cast_ne_zero.mpr (discr_ne_zero F)))
 
-private theorem classGamma_ne_of_re_pos {s : ℂ} (hs : 0 < s.re) : classGamma F s ≠ 0 := by
+/-- The class gamma factor has no zero in the open right half-plane. -/
+theorem classGamma_ne_of_re_pos {s : ℂ} (hs : 0 < s.re) : classGamma F s ≠ 0 := by
   refine mul_ne_zero (pow_ne_zero _ (Gammaℝ_ne_zero_of_re_pos hs)) (pow_ne_zero _ ?_)
   rw [Gammaℂ_def]
   exact mul_ne_zero (mul_ne_zero two_ne_zero (Complex.cpow_ne_zero_iff.mpr (.inl
@@ -350,5 +351,279 @@ theorem isPartialZeta_order_zero {C : ClassGroup (𝓞 F)} {Z : ℂ → ℂ}
         dsimp [G, P]
         rw [Function.update_of_ne hs]
         ring
+
+open NumberField.Units
+
+private theorem zero_class_constant (F : Type) [Field F] [NumberField F] :
+    ((Fintype.card (ClassGroup (𝓞 F)) : ℂ)⁻¹ *
+      -(((normOneClassMeasure F Set.univ).toReal : ℂ) * ((Real.pi : ℂ) ^ nrComplexPlaces F)⁻¹)) /
+      ((2 : ℂ) ^ nrRealPlaces F * 2 ^ nrComplexPlaces F) =
+        -(regulator F : ℂ) / torsionOrder F := by
+  rw [normOneClassMeasure_univ_toReal_eq, dedekindZeta_residue_def, NumberField.classNumber]
+  push_cast
+  have hd : Real.sqrt |(discr F : ℝ)| ≠ 0 := (Real.sqrt_pos_of_pos
+    (abs_pos.mpr (Int.cast_ne_zero.mpr (discr_ne_zero F)))).ne'
+  have hp := Complex.ofReal_ne_zero.mpr Real.pi_ne_zero
+  have hh : (Fintype.card (ClassGroup (𝓞 F)) : ℂ) ≠ 0 := card_classGroup_ne_zero
+  rw [mul_pow]
+  field_simp [hp, hh, Complex.ofReal_ne_zero.mpr hd]
+
+/-- At zero every ordinary ideal-class zeta has leading Taylor coefficient
+minus the regulator divided by the number of roots of unity, independently of the class. -/
+theorem tendsto_isPartialZeta_div_pow_zero {C : ClassGroup (𝓞 F)} {Z : ℂ → ℂ}
+    (hZ : IsPartialZeta C Z) :
+    Tendsto (fun s ↦ Z s / s ^ (nrRealPlaces F + nrComplexPlaces F - 1)) (𝓝[≠] 0)
+      (𝓝 (-(regulator F : ℂ) / torsionOrder F)) := by
+  let r := nrRealPlaces F
+  let c := nrComplexPlaces F
+  have hN : 0 < r + c := by
+    change 0 < nrRealPlaces F + nrComplexPlaces F
+    rw [← card_eq_nrRealPlaces_add_nrComplexPlaces]
+    exact Fintype.card_pos
+  have hD : (dF F : ℂ) ≠ 0 :=
+    Complex.ofReal_ne_zero.mpr (abs_ne_zero.mpr (Int.cast_ne_zero.mpr (discr_ne_zero F)))
+  have ht : Tendsto (fun s : ℂ => (dF F : ℂ) ^ (-(s / 2))) (𝓝[≠] 0) (𝓝 1) := by
+    have hc : ContinuousAt (fun s : ℂ => (dF F : ℂ) ^ (-(s / 2))) 0 :=
+      ContinuousAt.const_cpow (by fun_prop) (Or.inl hD)
+    simpa using hc.tendsto.mono_left nhdsWithin_le_nhds
+  have hg := (Gammaℝ_residue_zero.pow r).mul (Gammaℂ_residue_zero.pow c)
+  have h := (ht.mul (tendsto_mul_completedZetaOfClass_zero C)).div hg
+    (mul_ne_zero (pow_ne_zero _ two_ne_zero) (pow_ne_zero _ two_ne_zero))
+  rw [one_mul, zero_class_constant F] at h
+  refine h.congr' ?_
+  filter_upwards [self_mem_nhdsWithin, eventually_nhdsWithin_of_eventually_nhds
+    (isOpen_compl_singleton.mem_nhds (zero_ne_one (α := ℂ)))] with s hs0 hs1
+  have hs : s ≠ 0 := hs0
+  rw [isPartialZeta_eqOn hZ (isPartialZeta_zetaOfClass C) hs1, zetaOfClass_eq_normalized_of_ne_zero C hs]
+  change _ / ((s * Gammaℝ s)^r * (s * Gammaℂ s)^c) =
+    (Gammaℝ s ^ r * Gammaℂ s ^ c)⁻¹ * _ / s^(r+c-1)
+  rw [mul_pow, mul_pow]
+  have hp : s^(r+c) = s^(r+c-1) * s := by
+    rw [← pow_succ, Nat.sub_add_cancel hN]
+  rw [show s^r * Gammaℝ s^r * (s^c * Gammaℂ s^c) =
+    (s ^ (r+c)) * (Gammaℝ s^r * Gammaℂ s^c) by rw [pow_add]; ring, hp]
+  calc _ = (s * s⁻¹) * ((Gammaℝ s^r * Gammaℂ s^c)⁻¹ *
+          ((dF F : ℂ) ^ (-(s / 2)) * completedZetaOfClass C s) / s^(r+c-1)) := by
+            simp only [div_eq_mul_inv, mul_inv_rev]; ring
+       _ = _ := by rw [mul_inv_cancel₀ hs, one_mul]
+
+/-- The first nonzero derivative, divided by its factorial, is the same arithmetic
+constant for every class (also for unit rank zero). -/
+theorem isPartialZeta_leading_taylor_zero {C : ClassGroup (𝓞 F)} {Z : ℂ → ℂ}
+    (hZ : IsPartialZeta C Z) :
+    iteratedDeriv (Units.rank F) Z 0 / (Units.rank F).factorial =
+      -(regulator F : ℂ) / torsionOrder F := by
+  let k := Units.rank F
+  have hk : k = nrRealPlaces F + nrComplexPlaces F - 1 := by
+    simp [k, Units.rank, card_eq_nrRealPlaces_add_nrComplexPlaces]
+  have hZa := hZ.1.analyticAt (isOpen_compl_singleton.mem_nhds (zero_ne_one (α := ℂ)))
+  have ho : analyticOrderAt Z 0 = k := by rw [hk, isPartialZeta_order_zero hZ]
+  have hz := (analyticOrderAt_eq_nat_iff_iteratedDeriv_eq_zero hZa).mp ho
+  obtain ⟨g, hg, hseries⟩ := hZa.exists_eventuallyEq_sum_add_pow_mul (k+1)
+  have ht : Tendsto (fun s : ℂ => iteratedDeriv k Z 0 / k.factorial + s * g s) (𝓝[≠] 0)
+      (𝓝 (iteratedDeriv k Z 0 / k.factorial)) := by
+    have hi : Tendsto (id : ℂ → ℂ) (𝓝[≠] 0) (𝓝 0) := tendsto_id.mono_left nhdsWithin_le_nhds
+    simpa using (tendsto_const_nhds (x := iteratedDeriv k Z 0 / k.factorial)).add
+      (hi.mul (hg.continuousAt.tendsto.mono_left nhdsWithin_le_nhds))
+  apply tendsto_nhds_unique (f := fun s : ℂ => Z s / s^k) _ (by
+    rw [hk]; exact tendsto_isPartialZeta_div_pow_zero hZ)
+  refine ht.congr' ?_
+  filter_upwards [self_mem_nhdsWithin, eventually_nhdsWithin_of_eventually_nhds hseries] with s hs h
+  have hs0 : s ≠ 0 := hs
+  have hsum : ∑ i ∈ Finset.range k, (s ^ i / i.factorial) • iteratedDeriv i Z 0 = 0 :=
+    Finset.sum_eq_zero (fun i hi => by rw [hz.1 i (Finset.mem_range.mp hi), smul_zero])
+  rw [h, Finset.sum_range_succ, hsum, zero_add, pow_succ]
+  simp only [smul_eq_mul]
+  field_simp
+
+/-- The completed poles are identical for every class, so their difference is entire. -/
+theorem differentiable_completedZetaOfClass_sub (C B : ClassGroup (𝓞 F)) :
+    Differentiable ℂ (fun s => completedZetaOfClass C s - completedZetaOfClass B s) := by
+  obtain ⟨E, hE, hC⟩ := completedZetaOfClass_eq_dedekind_add_entire C
+  obtain ⟨H, hH, hB⟩ := completedZetaOfClass_eq_dedekind_add_entire B
+  simpa only [hC, hB, add_sub_add_left_eq_sub] using hE.fun_sub hH
+
+/-- Ordinary class differences have a global entire factorization, even at zero.
+At one this is a statement about the specified canonical representatives. -/
+theorem zetaOfClass_sub_eq_normalized (C B : ClassGroup (𝓞 F)) (s : ℂ) :
+    zetaOfClass C s - zetaOfClass B s =
+      (dF F : ℂ) ^ (-(s / 2)) * (classGamma F s)⁻¹ *
+        (completedZetaOfClass C s - completedZetaOfClass B s) := by
+  let G := fun t : ℂ => (dF F : ℂ) ^ (-(t / 2)) * (classGamma F t)⁻¹ *
+    (completedZetaOfClass C t - completedZetaOfClass B t)
+  have away (t : ℂ) (ht : t ≠ 0) : zetaOfClass C t - zetaOfClass B t = G t := by
+    rw [zetaOfClass_eq_normalized_of_ne_zero C ht, zetaOfClass_eq_normalized_of_ne_zero B ht]
+    dsimp [G]
+    ring
+  by_cases hs : s ≠ 0
+  · exact away s hs
+  · obtain rfl := not_not.mp hs
+    have hcont (A : ClassGroup (𝓞 F)) : ContinuousAt (zetaOfClass A) 0 :=
+      ((isPartialZeta_zetaOfClass A).1.analyticAt
+        (isOpen_compl_singleton.mem_nhds (zero_ne_one (α := ℂ)))).continuousAt
+    have hG : Differentiable ℂ G := (differentiable_discr_cpow_mul_gamma_inv F).fun_mul
+      (differentiable_completedZetaOfClass_sub C B)
+    apply tendsto_nhds_unique_of_eventuallyEq (l := 𝓝[≠] (0 : ℂ))
+      (((hcont C).sub (hcont B)).tendsto.mono_left nhdsWithin_le_nhds)
+      (hG.continuous.continuousAt.tendsto.mono_left nhdsWithin_le_nhds)
+    filter_upwards [self_mem_nhdsWithin] with t ht
+    exact away t ht
+
+/-- In this normalization subtraction fills the removable singularity of the
+ordinary class difference at one without choosing any new point value. -/
+theorem differentiable_zetaOfClass_sub (C B : ClassGroup (𝓞 F)) :
+    Differentiable ℂ (fun s => zetaOfClass C s - zetaOfClass B s) := by
+  simp_rw [zetaOfClass_sub_eq_normalized C B]
+  exact (differentiable_discr_cpow_mul_gamma_inv F).fun_mul (differentiable_completedZetaOfClass_sub C B)
+
+/-- At every nonpositive integer the ordinary difference has the full archimedean
+order, plus precisely the order of the completed difference. This includes identical classes. -/
+theorem isPartialZeta_sub_order_neg_nat {C B : ClassGroup (𝓞 F)} {Z W : ℂ → ℂ}
+    (hZ : IsPartialZeta C Z) (hW : IsPartialZeta B W) (n : ℕ) :
+    analyticOrderAt (fun s => Z s - W s) (-(n : ℂ)) =
+      ((if Even n then (nrRealPlaces F : ℕ∞) else 0) + nrComplexPlaces F) +
+        analyticOrderAt (fun s => completedZetaOfClass C s - completedZetaOfClass B s) (-(n : ℂ)) := by
+  let G := fun s : ℂ => (dF F : ℂ) ^ (-(s / 2)) * (classGamma F s)⁻¹
+  have hG : Differentiable ℂ G := differentiable_discr_cpow_mul_gamma_inv F
+  have h1 : -(n : ℂ) ≠ 1 := by
+    exact_mod_cast (by omega : -(n : ℤ) ≠ 1)
+  have eqn : (fun s => Z s - W s) =ᶠ[𝓝 (-(n : ℂ))]
+      G * (fun s => completedZetaOfClass C s - completedZetaOfClass B s) := by
+    filter_upwards [isOpen_compl_singleton.mem_nhds h1] with s hs
+    rw [isPartialZeta_eqOn hZ (isPartialZeta_zetaOfClass C) hs,
+        isPartialZeta_eqOn hW (isPartialZeta_zetaOfClass B) hs]
+    exact zetaOfClass_sub_eq_normalized C B s
+  rw [analyticOrderAt_congr eqn, analyticOrderAt_mul (hG.analyticAt _)
+    ((differentiable_completedZetaOfClass_sub C B).analyticAt _)]
+  congr 1
+  apply orderAt_signature_quotient_eq _ _ n (fun s : ℂ => (dF F : ℂ) ^ (-(s / 2))) G
+  · exact (show Differentiable ℂ (fun s : ℂ => (dF F : ℂ) ^ (-(s / 2))) from
+      fun s => DifferentiableAt.const_cpow (by fun_prop) (Or.inl (classDiscriminant_ne_zero F))).analyticAt _
+  · exact Complex.cpow_ne_zero_iff.mpr (Or.inl (classDiscriminant_ne_zero F))
+  · exact .of_forall fun s => mul_comm _ _
+
+/-- Ordinary partial zetas of arbitrary ideal classes have matching derivatives below
+the archimedean order at every nonpositive integer. In particular at zero this includes
+the first nonzero derivative of every individual partial zeta. -/
+theorem isPartialZeta_iteratedDeriv_eq_neg_nat {C B : ClassGroup (𝓞 F)} {Z W : ℂ → ℂ}
+    (hZ : IsPartialZeta C Z) (hW : IsPartialZeta B W) (n j : ℕ)
+    (hj : j < (if Even n then nrRealPlaces F else 0) + nrComplexPlaces F) :
+    iteratedDeriv j Z (-(n : ℂ)) = iteratedDeriv j W (-(n : ℂ)) := by
+  have h1 : -(n : ℂ) ≠ 1 := by
+    exact_mod_cast (by omega : -(n : ℤ) ≠ 1)
+  have hZa := hZ.1.analyticAt (isOpen_compl_singleton.mem_nhds h1)
+  have hWa := hW.1.analyticAt (isOpen_compl_singleton.mem_nhds h1)
+  have ho : (((if Even n then nrRealPlaces F else 0) + nrComplexPlaces F : ℕ) : ℕ∞) ≤
+      analyticOrderAt (fun s => Z s - W s) (-(n : ℂ)) := by
+    rw [isPartialZeta_sub_order_neg_nat hZ hW]
+    split_ifs <;> simp
+  have hj' := (natCast_le_analyticOrderAt_iff_iteratedDeriv_eq_zero (hZa.fun_sub hWa)).mp ho j hj
+  simpa only [iteratedDeriv_fun_sub hZa.contDiffAt hWa.contDiffAt, sub_eq_zero] using hj'
+
+/-- The difference of two completed class functions reflects even at the two
+poles of the separate functions: the common polar term cancels on both sides. -/
+theorem completedZetaOfClass_sub_reflect (C B C' B' : ClassGroup (𝓞 F))
+    (D : (Ideal (𝓞 F))⁰) (hD : (D : Ideal (𝓞 F)) = differentIdeal ℤ (𝓞 F))
+    (hC : C * C' = ClassGroup.mk0 D) (hB : B * B' = ClassGroup.mk0 D) :
+    (fun s => completedZetaOfClass C s - completedZetaOfClass B s) =
+      (fun s => completedZetaOfClass C' (1 - s) - completedZetaOfClass B' (1 - s)) := by
+  have h₁ := differentiable_completedZetaOfClass_sub C B
+  have h₂ : Differentiable ℂ (fun s => completedZetaOfClass C' (1 - s) - completedZetaOfClass B' (1 - s)) :=
+    (differentiable_completedZetaOfClass_sub C' B').comp (show Differentiable ℂ (fun s : ℂ => 1 - s) by fun_prop)
+  apply (Complex.analyticOnNhd_univ_iff_differentiable.mpr h₁).eq_of_eventuallyEq
+    (Complex.analyticOnNhd_univ_iff_differentiable.mpr h₂) (z₀ := 2)
+  filter_upwards [eventually_ne_nhds (show (2 : ℂ) ≠ 0 by norm_num),
+    eventually_ne_nhds (show (2 : ℂ) ≠ 1 by norm_num)] with s hs₀ hs₁
+  exact congrArg₂ (· - ·)
+    (completedZetaOfClass_functionalEquation C C' D hD hC s hs₀ hs₁)
+    (completedZetaOfClass_functionalEquation B B' D hD hB s hs₀ hs₁)
+
+/-- Any multiplicity beyond the archimedean trivial zeros is the multiplicity
+of the reflected ordinary difference. At n = 0 the right side uses the entire
+canonical difference at 1, not the arbitrary assigned values of two meromorphic functions. -/
+theorem isPartialZeta_sub_order_reflected {C B C' B' : ClassGroup (𝓞 F)} {Z W : ℂ → ℂ}
+    (hZ : IsPartialZeta C Z) (hW : IsPartialZeta B W)
+    (D : (Ideal (𝓞 F))⁰) (hD : (D : Ideal (𝓞 F)) = differentIdeal ℤ (𝓞 F))
+    (hC : C * C' = ClassGroup.mk0 D) (hB : B * B' = ClassGroup.mk0 D) (n : ℕ) :
+    analyticOrderAt (fun s => Z s - W s) (-(n : ℂ)) =
+      ((if Even n then (nrRealPlaces F : ℕ∞) else 0) + nrComplexPlaces F) +
+        analyticOrderAt (fun s => zetaOfClass C' s - zetaOfClass B' s) (1 + n) := by
+  let E := fun s => completedZetaOfClass C' s - completedZetaOfClass B' s
+  let u := fun s : ℂ => (dF F : ℂ) ^ (-(s / 2)) * (classGamma F s)⁻¹
+  have hu : AnalyticAt ℂ u (1 + n : ℂ) :=
+    (differentiable_discr_cpow_mul_gamma_inv F).analyticAt (1 + n : ℂ)
+  have hunit : u (1 + n) ≠ 0 := mul_ne_zero
+    (Complex.cpow_ne_zero_iff.mpr (.inl (classDiscriminant_ne_zero F)))
+    (inv_ne_zero (classGamma_ne_of_re_pos (by simpa using (show (0 : ℝ) < 1 + n by positivity))))
+  have hE : AnalyticAt ℂ E (1 + n : ℂ) :=
+    (differentiable_completedZetaOfClass_sub C' B').analyticAt (1 + n : ℂ)
+  rw [isPartialZeta_sub_order_neg_nat hZ hW n, completedZetaOfClass_sub_reflect C B C' B' D hD hC hB]
+  congr 1
+  change analyticOrderAt (E ∘ (fun s : ℂ => 1 - s)) (-(n : ℂ)) = _
+  rw [analyticOrderAt_comp_of_deriv_ne_zero (by fun_prop) (by simp)]
+  simp only [sub_neg_eq_add]
+  have hmul : (fun s => zetaOfClass C' s - zetaOfClass B' s) = (fun s => u s * E s) :=
+    funext (zetaOfClass_sub_eq_normalized C' B')
+  rw [hmul, analyticOrderAt_fun_mul hu hE, hu.analyticOrderAt_eq_zero.mpr hunit, zero_add]
+
+/-- Comparing two classes cancels the common leading value at zero. The next
+Taylor coefficient is the reflected difference of the finite parts at one,
+with the normalization of this field's discriminant and archimedean places. -/
+theorem tendsto_isPartialZeta_sub_div_pow_zero {C B C' B' : ClassGroup (𝓞 F)} {Z W : ℂ → ℂ}
+    (hZ : IsPartialZeta C Z) (hW : IsPartialZeta B W)
+    (D : (Ideal (𝓞 F))⁰) (hD : (D : Ideal (𝓞 F)) = differentIdeal ℤ (𝓞 F))
+    (hC : C * C' = ClassGroup.mk0 D) (hB : B * B' = ClassGroup.mk0 D) :
+    Tendsto (fun s => (Z s - W s) / s ^ (nrRealPlaces F + nrComplexPlaces F))
+      (𝓝[≠] 0) (𝓝 ((dF F : ℂ) ^ (1 / 2 : ℂ) * (zetaOfClass C' 1 - zetaOfClass B' 1) /
+        ((Real.pi : ℂ) ^ nrComplexPlaces F * (2 : ℂ) ^ (nrRealPlaces F + nrComplexPlaces F)))) := by
+  let r := nrRealPlaces F
+  let c := nrComplexPlaces F
+  let E := fun s => completedZetaOfClass C s - completedZetaOfClass B s
+  have hE : Tendsto E (𝓝[≠] 0) (𝓝 (E 0)) :=
+    ((differentiable_completedZetaOfClass_sub C B).continuous.continuousAt.tendsto).mono_left
+      nhdsWithin_le_nhds
+  have hE₀ : E 0 = (dF F : ℂ) ^ (1 / 2 : ℂ) * ((Real.pi : ℂ) ^ c)⁻¹ *
+      (zetaOfClass C' 1 - zetaOfClass B' 1) := by
+    have e := congrFun (completedZetaOfClass_sub_reflect C B C' B' D hD hC hB) 0
+    simp only [sub_zero] at e
+    have hγ : classGamma F 1 ≠ 0 := classGamma_ne_of_re_pos (by norm_num)
+    change completedZetaOfClass C 0 - completedZetaOfClass B 0 = _
+    rw [e, completedZetaOfClass_eq C' hγ, completedZetaOfClass_eq B' hγ, classGamma,
+      Gammaℝ_one, Gammaℂ_one]
+    simp only [one_pow, one_mul, one_div, inv_pow, c, mul_sub]
+  have ht : Tendsto (fun s : ℂ => (dF F : ℂ) ^ (-(s / 2))) (𝓝[≠] 0) (𝓝 1) := by
+    have h : ContinuousAt (fun s : ℂ => (dF F : ℂ) ^ (-(s / 2))) 0 :=
+      ContinuousAt.const_cpow (by fun_prop) (Or.inl (classDiscriminant_ne_zero F))
+    simpa using h.tendsto.mono_left nhdsWithin_le_nhds
+  have hg := (Gammaℝ_residue_zero.pow r).mul (Gammaℂ_residue_zero.pow c)
+  have h := (ht.mul hE).div hg (mul_ne_zero (pow_ne_zero _ two_ne_zero) (pow_ne_zero _ two_ne_zero))
+  rw [one_mul, hE₀, ← pow_add] at h
+  have hc : (dF F : ℂ) ^ (1 / 2 : ℂ) * ((Real.pi : ℂ) ^ c)⁻¹ *
+        (zetaOfClass C' 1 - zetaOfClass B' 1) / (2 : ℂ) ^ (r + c) =
+      (dF F : ℂ) ^ (1 / 2 : ℂ) * (zetaOfClass C' 1 - zetaOfClass B' 1) /
+        ((Real.pi : ℂ) ^ c * (2 : ℂ) ^ (r + c)) := by
+    simp only [div_eq_mul_inv, mul_inv_rev]
+    ring
+  rw [hc] at h
+  refine h.congr' ?_
+  filter_upwards [eventually_nhdsWithin_of_eventually_nhds
+    (eventually_ne_nhds (zero_ne_one (α := ℂ)))] with s hs
+  rw [isPartialZeta_eqOn hZ (isPartialZeta_zetaOfClass C) hs,
+    isPartialZeta_eqOn hW (isPartialZeta_zetaOfClass B) hs, zetaOfClass_sub_eq_normalized]
+  change _ / ((s * Gammaℝ s)^r * (s * Gammaℂ s)^c) =
+    _ * (Gammaℝ s ^ r * Gammaℂ s ^ c)⁻¹ * E s / s^(r+c)
+  simp only [mul_pow, pow_add, div_eq_mul_inv, mul_inv_rev]
+  ring
+
+/-- The value used at one in the reflection formula is the limit for every
+choice of the two partial zetas, no matter what values they assign to the pole. -/
+theorem isPartialZeta_tendsto_sub_one {C B : ClassGroup (𝓞 F)} {Z W : ℂ → ℂ}
+    (hZ : IsPartialZeta C Z) (hW : IsPartialZeta B W) :
+    Tendsto (fun s => Z s - W s) (𝓝[≠] 1) (𝓝 (zetaOfClass C 1 - zetaOfClass B 1)) := by
+  refine ((differentiable_zetaOfClass_sub C B).continuous.continuousAt.tendsto.mono_left
+    nhdsWithin_le_nhds).congr' ?_
+  filter_upwards [self_mem_nhdsWithin] with s hs
+  rw [isPartialZeta_eqOn hZ (isPartialZeta_zetaOfClass C) hs,
+    isPartialZeta_eqOn hW (isPartialZeta_zetaOfClass B) hs]
 
 end GlobalTheory.CompanionTheory.Hypotheses₂
