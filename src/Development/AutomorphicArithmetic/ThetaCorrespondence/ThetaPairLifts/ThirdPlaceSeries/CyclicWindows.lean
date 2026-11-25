@@ -73,11 +73,23 @@ theorem one_window_at_cyclic_modulus (N : ℕ) [NeZero N] [IsCyclic (ZMod N)ˣ] 
   obtain ⟨ξ, hξ⟩ := one_narrow_window_at_cyclic_modulus N
   exact ⟨ξ, fun b hb => hξ b 2 hb (by norm_num)⟩
 
+/-- Finite Sha samples at the rank exponent itself, along epsilons tending to zero. -/
+def CriticalDyadicSupply (ψ : PChar) : Prop :=
+  ∃ w > (1 : ℝ), ∀ η > (0 : ℝ), ∃ eps > (0 : ℝ), eps < η ∧ CriticalDyadicWindowAt ψ eps w
+
 /-- Each chosen character needs one positive window width, but Sha estimates only along some
 sequence of epsilons tending to zero. The excess over the rank exponent need not be uniform. -/
 def CoinitialDyadicWindows (ψ : PChar) : Prop :=
   ∃ w > (1 : ℝ), ∀ η > (0 : ℝ), ∃ eps > (0 : ℝ), eps < η ∧
     ∃ b > rankExponent eps, DyadicWindowAtWidth ψ eps w b
+
+/-- A larger pure power eventually dominates the field and page multiplier at each selected ε. -/
+theorem CoinitialDyadicWindows.critical {ψ : PChar} (h : CoinitialDyadicWindows ψ) :
+    CriticalDyadicSupply ψ := by
+  obtain ⟨w, hw, h⟩ := h
+  refine ⟨w, hw, fun η hη => ?_⟩
+  obtain ⟨eps, he, hη', b, hb, win⟩ := h η hη
+  exact ⟨eps, he, hη', win.critical hb⟩
 
 /-- Any fixed power above the limiting exponent works throughout a sufficiently small ε range. -/
 theorem DyadicVWinBelowWidth.coinitial {ψ : PChar} {δ w b : ℝ} (h : DyadicVWinBelowWidth ψ δ w b)
@@ -95,31 +107,48 @@ theorem DyadicVWinBelowWidth.coinitial {ψ : PChar} {δ w b : ℝ} (h : DyadicVW
   unfold rankExponent
   linarith
 
-theorem cyclicLevel_of_green_coinitial_windows (hG : GlobalTheory.GLq.Green) (h : SideHyps)
-    (ψ : PChar) (win : CoinitialDyadicWindows ψ) : (Level.cyc ψ).ZeroFreeLevel := by
+theorem cyclicLevel_of_green_critical_dyadic (hG : GlobalTheory.GLq.Green) (h : SideHyps)
+    (ψ : PChar) (win : CriticalDyadicSupply ψ) : (Level.cyc ψ).ZeroFreeLevel := by
   obtain ⟨w, hw, win⟩ := win
   obtain ⟨la, hla, hlw⟩ := exists_between hw
-  obtain ⟨P, hP, hH⟩ := exists_coinitial_host_of_dyadic ψ hla hlw win
+  obtain ⟨P, hP, hH⟩ := exists_coinitial_host_of_critical_dyadic ψ hla hlw win
   exact h.elim fun side => cyclicLevel_of_coinitial_hosts hla
     (_root_.GlobalTheory.Fc.forall_goal_of_shape_of_hyps _ _ _ _ (shape_closed_link_n_of_green_on hG)
       trivial trivial side) hP ψ hH
 
-theorem every_character_of_green_coinitial_windows (hG : GlobalTheory.GLq.Green) (h : SideHyps)
+theorem every_character_of_green_critical_dyadic (hG : GlobalTheory.GLq.Green) (h : SideHyps)
     (tested : Set PChar) (cover : ∀ ψ : PChar, ∃ ρ ∈ tested, ψ ∈ (Level.cyc ρ).KEPT)
-    (win : ∀ ρ ∈ tested, CoinitialDyadicWindows ρ) : UpperTheory.EveryCharacter := by
+    (win : ∀ ρ ∈ tested, CriticalDyadicSupply ρ) : UpperTheory.EveryCharacter := by
   apply imprimitive
   intro ψ _
   obtain ⟨ρ, hρ, hψ⟩ := cover ψ
-  exact cyclicLevel_of_green_coinitial_windows hG h ρ (win ρ hρ) ψ hψ
+  exact cyclicLevel_of_green_critical_dyadic hG h ρ (win ρ hρ) ψ hψ
+
+theorem one_critical_dyadic_window_at_cyclic_modulus (N : ℕ) [NeZero N] [IsCyclic (ZMod N)ˣ] :
+    ∃ ξ : DirichletCharacter ℂ N, CriticalDyadicSupply (PChar.of ξ) →
+      GlobalTheory.GLq.Green → SideHyps →
+      ∀ (χ : DirichletCharacter ℂ N) (s : ℂ), 1 / 2 < s.re → (χ ≠ 1 ∨ s ≠ 1) →
+        DirichletCharacter.LFunction χ s ≠ 0 := by
+  obtain ⟨ξ, hξ⟩ := Level.exists_cyc_keeps_all_of_isCyclic_units (n := N)
+  refine ⟨ξ, fun win hG h χ => imprimitive_of_primitive χ ?_⟩
+  exact cyclicLevel_of_green_critical_dyadic hG h _ win (PChar.of χ) (hξ χ)
+
+theorem cyclicLevel_of_green_coinitial_windows (hG : GlobalTheory.GLq.Green) (h : SideHyps)
+    (ψ : PChar) (win : CoinitialDyadicWindows ψ) : (Level.cyc ψ).ZeroFreeLevel :=
+  cyclicLevel_of_green_critical_dyadic hG h ψ win.critical
+
+theorem every_character_of_green_coinitial_windows (hG : GlobalTheory.GLq.Green) (h : SideHyps)
+    (tested : Set PChar) (cover : ∀ ψ : PChar, ∃ ρ ∈ tested, ψ ∈ (Level.cyc ρ).KEPT)
+    (win : ∀ ρ ∈ tested, CoinitialDyadicWindows ρ) : UpperTheory.EveryCharacter :=
+  every_character_of_green_critical_dyadic hG h tested cover fun ρ hρ => (win ρ hρ).critical
 
 theorem one_coinitial_window_at_cyclic_modulus (N : ℕ) [NeZero N] [IsCyclic (ZMod N)ˣ] :
     ∃ ξ : DirichletCharacter ℂ N, CoinitialDyadicWindows (PChar.of ξ) →
       GlobalTheory.GLq.Green → SideHyps →
       ∀ (χ : DirichletCharacter ℂ N) (s : ℂ), 1 / 2 < s.re → (χ ≠ 1 ∨ s ≠ 1) →
         DirichletCharacter.LFunction χ s ≠ 0 := by
-  obtain ⟨ξ, hξ⟩ := Level.exists_cyc_keeps_all_of_isCyclic_units (n := N)
-  refine ⟨ξ, fun win hG h χ => imprimitive_of_primitive χ ?_⟩
-  exact cyclicLevel_of_green_coinitial_windows hG h _ win (PChar.of χ) (hξ χ)
+  obtain ⟨ξ, hξ⟩ := one_critical_dyadic_window_at_cyclic_modulus N
+  exact ⟨ξ, fun win => hξ win.critical⟩
 
 /-- It suffices to test the finite list of dyadic page boundaries in each retained window. -/
 theorem cyclicLevel_of_green_dyadic_window (hG : GlobalTheory.GLq.Green) (h : SideHyps) (ψ : PChar)

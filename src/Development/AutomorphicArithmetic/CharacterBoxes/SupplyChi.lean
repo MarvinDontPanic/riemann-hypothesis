@@ -41,22 +41,56 @@ theorem UpperTheory.Top.supplyChi :
   fun ψ hψ => supplyChi_of_cofinal ψ hψ.cofinal
 
 
-/-- Windows at arbitrarily small good ε suffice to construct gated hosts on that same set.
-Outside it the unconditional prime-pair windows supply the underlying hosts. -/
+namespace UpperTheory.Top
+
+/-- Sampling at page boundaries and rescaling by the field order contribute one combined factor. -/
+theorem fieldRankCoeff_mul_page {ψ : PChar} {eps y : ℝ} (hy : 0 ≤ y) :
+    fieldRankCoeff ψ eps * (pageRatio eps * y) ^ rankExponent eps =
+      10708 * (2 * (Nat.card (Subgroup.zpowers ψ.χ) : ℝ)) ^ (rankExponent eps / (2 + 8 * eps)) *
+        y ^ rankExponent eps := by
+  unfold fieldRankCoeff pageRatio
+  rw [Real.mul_rpow (Real.rpow_nonneg (by norm_num) _) hy,
+    ← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2), Real.mul_rpow (by norm_num) (by positivity),
+    show (2 + 8 * eps)⁻¹ * rankExponent eps = rankExponent eps / (2 + 8 * eps) by ring]
+  ring
+
+/-- Dyadic boundary tests at the rank exponent itself, including the field and page factors. -/
+def CriticalDyadicWindowAt (ψ : PChar) (eps w : ℝ) : Prop :=
+  DyadicWindowFor ψ eps w (fun y =>
+    10708 * (2 * (Nat.card (Subgroup.zpowers ψ.χ) : ℝ)) ^ (rankExponent eps / (2 + 8 * eps)) *
+      y ^ rankExponent eps)
+
+theorem DyadicWindowAtWidth.critical {ψ : PChar} {eps w b : ℝ}
+    (h : DyadicWindowAtWidth ψ eps w b) (hb : rankExponent eps < b) : CriticalDyadicWindowAt ψ eps w := by
+  let C := 10708 * (2 * (Nat.card (Subgroup.zpowers ψ.χ) : ℝ)) ^ (rankExponent eps / (2 + 8 * eps))
+  obtain ⟨M, hM⟩ := eventually_scaled_rpow_le (C := C) (D := 1) (k := 1) hb zero_le_one zero_lt_one
+  exact (show DyadicWindowFor ψ eps w (fun y => y ^ b) from h).mono_eventually
+    (M := M) fun y hy => by simpa only [one_mul] using hM y hy
+
+/-- Only the sampled critical bound, and only at coinitial good ε, is needed for gated hosts. -/
+theorem exists_coinitial_host_of_critical_dyadic {la w : ℝ} (ψ : PChar)
+    (hla : 1 < la) (hlw : la < w)
+    (h : ∀ η > (0 : ℝ), ∃ eps > (0 : ℝ), eps < η ∧ CriticalDyadicWindowAt ψ eps w) :
+    ∃ P : ℝ → Prop, (∀ η > (0 : ℝ), ∃ eps > (0 : ℝ), eps < η ∧ P eps) ∧
+      HostExW la ((GChi ψ).whenEps P).req := by
+  let P := fun eps => CriticalDyadicWindowAt ψ eps w
+  obtain ⟨v, hlv, hvw⟩ := exists_between hlw
+  refine ⟨P, h, supplyChi_of_rank_windows_on hla hlv ψ (RankWindowsOn.of_critical ?_)⟩
+  intro eps he _ hP
+  apply DyadicWindowFor.toJoint_critical he hvw (by unfold rankExponent; positivity)
+    (by unfold fieldRankCoeff; positivity)
+  exact (show DyadicWindowFor ψ eps w _ from hP).mono_eventually (M := 0) fun y hy =>
+    (fieldRankCoeff_mul_page hy).le
+
+end UpperTheory.Top
+
 theorem UpperTheory.Top.exists_coinitial_host_of_dyadic {la w : ℝ} (ψ : PChar)
     (hla : 1 < la) (hlw : la < w)
     (h : ∀ η : ℝ, 0 < η → ∃ eps : ℝ, 0 < eps ∧ eps < η ∧
       ∃ b : ℝ, rankExponent eps < b ∧ DyadicWindowAtWidth ψ eps w b) :
     ∃ P : ℝ → Prop, (∀ η : ℝ, 0 < η → ∃ eps : ℝ, 0 < eps ∧ eps < η ∧ P eps) ∧
       HostExW la ((GChi ψ).whenEps P).req := by
-  let P := fun eps => ∃ b : ℝ, rankExponent eps < b ∧ DyadicWindowAtWidth ψ eps w b
-  obtain ⟨v, hlv, hvw⟩ := exists_between hlw
-  refine ⟨P, h, supplyChi_of_rank_windows_on hla hlv ψ ?_⟩
-  let b := fun eps => Classical.epsilon (fun z : ℝ => rankExponent eps < z ∧ DyadicWindowAtWidth ψ eps w z)
-  have good (eps : ℝ) (hp : P eps) : rankExponent eps < b eps ∧ DyadicWindowAtWidth ψ eps w (b eps) :=
-    Classical.epsilon_spec hp
-  apply RankWindowsOn.of_power (C := fun eps => 1 / 2 ^ b eps) (b := b)
-  · intro eps he _ hp
-    obtain ⟨hgap, hwin⟩ := good eps hp
-    exact hwin.toJoint he hvw ((show 0 ≤ rankExponent eps by unfold rankExponent; positivity).trans hgap.le)
-  · exact fun eps _ _ hp => ⟨by positivity, (good eps hp).1⟩
+  apply exists_coinitial_host_of_critical_dyadic ψ hla hlw
+  intro η hη
+  obtain ⟨eps, he, hη', b, hb, hV⟩ := h η hη
+  exact ⟨eps, he, hη', hV.critical hb⟩

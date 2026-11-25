@@ -34,6 +34,20 @@ def RankWindowsAtWidth (ψ : PChar) (δ w : ℝ) : Prop :=
 /-- The square-window specialization. -/
 def RankWindowsAt (ψ : PChar) (δ : ℝ) : Prop := RankWindowsAtWidth ψ δ 2
 
+/-- A fixed rescaling and a positive leading coefficient can be absorbed by any strict exponent gap. -/
+theorem eventually_scaled_rpow_le {a b C D k : ℝ} (hab : a < b) (hk : 0 ≤ k) (hD : 0 < D) :
+    ∃ M : ℝ, ∀ x ≥ M, C * (k * x) ^ a ≤ D * x ^ b := by
+  obtain ⟨M, hM⟩ := Filter.eventually_atTop.1
+    (((tendsto_rpow_atTop (sub_pos.mpr hab)).eventually_ge_atTop (C * k ^ a / D)).and
+      (Filter.eventually_ge_atTop (1 : ℝ)))
+  refine ⟨M, fun x hx => ?_⟩
+  obtain ⟨h, hx₁⟩ := hM x hx
+  have hx₀ := zero_lt_one.trans_le hx₁
+  rw [Real.mul_rpow hk hx₀.le, ← mul_assoc]
+  calc C * k ^ a * x ^ a ≤ (x ^ (b - a) * D) * x ^ a :=
+         mul_le_mul_of_nonneg_right ((div_le_iff₀ hD).mp h) (Real.rpow_nonneg hx₀.le _)
+       _ = D * x ^ b := by rw [mul_comm _ D, mul_assoc, ← Real.rpow_add hx₀, sub_add_cancel]
+
 /-- An arbitrarily small positive multiplier suffices above the fixed-epsilon exponent. -/
 theorem RankWindowsOn.of_power {ψ : PChar} {P : ℝ → Prop} {w : ℝ} {C b : ℝ → ℝ}
     (hV : ∀ eps : ℝ, 0 < eps → eps < 1 / 52 → P eps → JointWindowAtWidth ψ eps w (fun x => C eps * x ^ b eps))
@@ -41,23 +55,7 @@ theorem RankWindowsOn.of_power {ψ : PChar} {P : ℝ → Prop} {w : ℝ} {C b : 
     RankWindowsOn ψ P w := by
   refine ⟨_, hV, fun eps he he' hsmall k hk _ => ?_⟩
   obtain ⟨hC, hb⟩ := h eps he he' hsmall
-  have hk₀ : 0 ≤ k := zero_le_one.trans hk
-  let K := 10708 * k ^ rankExponent eps / C eps
-  have hK : 0 ≤ K := by dsimp [K]; positivity
-  have hd : 0 < b eps - rankExponent eps := sub_pos.mpr hb
-  refine ⟨max 1 (K ^ (b eps - rankExponent eps)⁻¹), fun x hx => ?_⟩
-  have hx₀ : 0 < x := lt_of_lt_of_le zero_lt_one ((le_max_left _ _).trans hx)
-  have hKx : K ≤ x ^ (b eps - rankExponent eps) := by
-    calc K = (K ^ (b eps - rankExponent eps)⁻¹) ^ (b eps - rankExponent eps) :=
-        (Real.rpow_inv_rpow hK hd.ne').symm
-      _ ≤ _ := Real.rpow_le_rpow (Real.rpow_nonneg hK _) ((le_max_right _ _).trans hx) hd.le
-  have hscale := (div_le_iff₀ hC).mp hKx
-  rw [Real.mul_rpow hk₀ hx₀.le, ← mul_assoc]
-  calc 10708 * k ^ rankExponent eps * x ^ rankExponent eps
-      ≤ (x ^ (b eps - rankExponent eps) * C eps) * x ^ rankExponent eps :=
-        mul_le_mul_of_nonneg_right hscale (Real.rpow_nonneg hx₀.le _)
-    _ = C eps * x ^ b eps := by
-      rw [mul_comm _ (C eps), mul_assoc, ← Real.rpow_add hx₀, sub_add_cancel]
+  exact eventually_scaled_rpow_le hb (zero_le_one.trans hk) hC
 
 theorem RankWindowsAtWidth.of_power {ψ : PChar} {δ w : ℝ} {C b : ℝ → ℝ}
     (hV : JointVWinBelowWidth ψ δ w (fun eps x => C eps * x ^ b eps))
@@ -80,12 +78,16 @@ theorem RankWindows.of_power {ψ : PChar} {C b : ℝ → ℝ}
     RankWindows ψ :=
   RankWindowsAt.of_power (fun eps he he' _ => hV eps he he') (fun eps he he' _ => h eps he he')
 
-/-- At the fixed-epsilon exponent itself, retain the character's field-order multiplier. -/
-theorem RankWindows.of_critical {ψ : PChar}
-    (hV : JointVWinFor ψ (fun eps x =>
-      10708 * (Nat.card (Subgroup.zpowers ψ.χ) : ℝ) ^ (rankExponent eps / (2 + 8 * eps)) *
-        x ^ rankExponent eps)) : RankWindows ψ := by
-  refine ⟨_, (fun eps he he' _ => hV eps he he'), fun eps he _ _ k hk hc => ⟨0, fun x hx => ?_⟩⟩
+/-- The field-order factor in the rank cutoff after rescaling a character window. -/
+noncomputable def fieldRankCoeff (ψ : PChar) (eps : ℝ) : ℝ :=
+  10708 * (Nat.card (Subgroup.zpowers ψ.χ) : ℝ) ^ (rankExponent eps / (2 + 8 * eps))
+
+/-- At the fixed-epsilon exponent, retain the character's field-order multiplier. -/
+theorem RankWindowsOn.of_critical {ψ : PChar} {P : ℝ → Prop} {w : ℝ}
+    (hV : ∀ eps : ℝ, 0 < eps → eps < 1 / 52 → P eps →
+      JointWindowAtWidth ψ eps w (fun x => fieldRankCoeff ψ eps * x ^ rankExponent eps)) :
+    RankWindowsOn ψ P w := by
+  refine ⟨_, hV, fun eps he _ _ k hk hc => ⟨0, fun x hx => ?_⟩⟩
   have hk₀ : 0 ≤ k := zero_le_one.trans hk
   have hd : 0 < 2 + 8 * eps := by positivity
   have he₀ : 0 ≤ rankExponent eps / (2 + 8 * eps) := by unfold rankExponent; positivity
@@ -94,6 +96,12 @@ theorem RankWindows.of_critical {ψ : PChar}
     rankExponent eps by field_simp] at hle
   rw [Real.mul_rpow hk₀ hx, ← mul_assoc]
   exact mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hle (by norm_num)) (Real.rpow_nonneg hx _)
+
+theorem RankWindows.of_critical {ψ : PChar}
+    (hV : JointVWinFor ψ (fun eps x =>
+      10708 * (Nat.card (Subgroup.zpowers ψ.χ) : ℝ) ^ (rankExponent eps / (2 + 8 * eps)) *
+        x ^ rankExponent eps)) : RankWindows ψ :=
+  RankWindowsOn.of_critical fun eps he he' _ => hV eps he he'
 
 /-- The interval of admissible epsilons is open, so coefficient one works at its uniform endpoint. -/
 theorem RankWindows.of_uniform {ψ : PChar} {C : ℝ → ℝ}
