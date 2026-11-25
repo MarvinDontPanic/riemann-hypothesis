@@ -91,6 +91,29 @@ theorem finite_card_le_index_of_charRatios {G : Type} {A : Type*} [CommGroup G]
       Nat.card_le_card_of_injective ratio hinj
     _ = H.index := card_chars H
 
+/-- Two Hecke characters with the same infinity type and conductor bounds agree on
+the principal idèles and the prescribed level subgroup. -/
+theorem raySubgroup_le_ker_ratio
+    {L : Type} [Field L] [NumberField L] {I : Type} [Fintype I]
+    {φ : I → L →+* ℂ} {n : I → ℤ} {S : Set (HeightOneSpectrum (𝓞 L))} {N : ℕ}
+    (hA : ∀ ψ : Formalism.L2.Host.HChar L, (∀ k : Lˣ, ψ.inf k = 1) →
+      (∀ v, v ∉ S → ψ.UnrAt v) → (∀ v ∈ S, ψ.LevelLe v N) →
+      ∀ a ∈ levSub L S N, ψ.1 a = 1)
+    {χ χ0 : Formalism.L2.Host.HChar L}
+    (hχ : χ.HasInf φ n ∧ (∀ v, v ∉ S → χ.UnrAt v) ∧ ∀ v ∈ S, χ.LevelLe v N)
+    (hχ0 : χ0.HasInf φ n ∧ (∀ v, v ∉ S → χ0.UnrAt v) ∧ ∀ v ∈ S, χ0.LevelLe v N) :
+    (Units.map (algebraMap L (AdeleRing (𝓞 L) L)).toMonoidHom).range ⊔ levSub L S N ≤
+      ((χ * χ0⁻¹).1).ker := by
+  refine sup_le ?_ fun a ha => MonoidHom.mem_ker.2 (hA (χ * χ0⁻¹) (fun k => ?_) (fun v hv x hx => ?_) (fun v hv x hx hle => ?_) a ha)
+  · rintro _ ⟨k, rfl⟩
+    exact MonoidHom.mem_ker.2 ((χ * χ0⁻¹).2.2 k)
+  · have e : χ.inf k = χ0.inf k := Units.ext ((hχ.1 k).trans (hχ0.1 k).symm)
+    rw [Formalism.L2.Host.HChar.inf_mul, Formalism.L2.Host.HChar.inf_inv, e, mul_inv_cancel]
+  · change χ.loc v x * (χ0.loc v x)⁻¹ = 1
+    rw [hχ.2.1 v hv x hx, hχ0.2.1 v hv x hx, inv_one, one_mul]
+  · change χ.loc v x * (χ0.loc v x)⁻¹ = 1
+    rw [hχ.2.2 v hv x hx hle, hχ0.2.2 v hv x hx hle, inv_one, one_mul]
+
 /-- Prescribing the infinity type and local conductor bounds leaves at most one
 character per dual character of the finite idele-class quotient. -/
 theorem heckeFin_card_le_of
@@ -107,17 +130,7 @@ theorem heckeFin_card_le_of
   classical
   have := hC L S N hS
   refine finite_card_le_index_of_charRatios _ _ Subtype.val Subtype.val_injective ?_
-  intro χ hχ χ0 hχ0
-  change _ ≤ ((χ * χ0⁻¹).1).ker
-  refine sup_le ?_ fun a ha => MonoidHom.mem_ker.2 (hA L S N (χ * χ0⁻¹) (fun k => ?_) (fun v hv x hx => ?_) (fun v hv x hx hle => ?_) a ha)
-  · rintro _ ⟨k, rfl⟩
-    exact MonoidHom.mem_ker.2 ((χ * χ0⁻¹).2.2 k)
-  · have e : χ.inf k = χ0.inf k := Units.ext ((hχ.1 k).trans (hχ0.1 k).symm)
-    rw [Formalism.L2.Host.HChar.inf_mul, Formalism.L2.Host.HChar.inf_inv, e, mul_inv_cancel]
-  · change χ.loc v x * (χ0.loc v x)⁻¹ = 1
-    rw [hχ.2.1 v hv x hx, hχ0.2.1 v hv x hx, inv_one, one_mul]
-  · change χ.loc v x * (χ0.loc v x)⁻¹ = 1
-    rw [hχ.2.2 v hv x hx hle, hχ0.2.2 v hv x hx hle, inv_one, one_mul]
+  exact fun _ hχ _ hχ0 ↦ raySubgroup_le_ker_ratio (hA L S N) hχ hχ0
 
 theorem heckeFin_of
     (hA : ∀ (L : Type) [Field L] [NumberField L] (S : Set (HeightOneSpectrum (𝓞 L))) (N : ℕ) (ψ : Formalism.L2.Host.HChar L),

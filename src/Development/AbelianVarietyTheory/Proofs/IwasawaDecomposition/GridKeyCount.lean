@@ -30,6 +30,28 @@ noncomputable def rayIndexAt (D : D7) (v : HeightOneSpectrum (𝓞 D.host.F)) : 
   ((Units.map (algebraMap D.host.E (AdeleRing (𝓞 D.host.E) D.host.E)).toMonoidHom).range ⊔
     GlobalTheory.LevelChars.levSub D.host.E (Sv D v) 2).index
 
+theorem rayIndexAt_pos (D : D7) (v : HeightOneSpectrum (𝓞 D.host.F)) : 0 < rayIndexAt D v := by
+  have := GlobalTheory.T.rayClassGroup_idelic_finiteIndex D.host.E (Sv D v) 2 (finite_Sv D v)
+  exact Nat.pos_of_ne_zero Subgroup.FiniteIndex.index_ne_zero
+
+/-- At every finite place, the uniformizer values of two characters in the same
+prescribed family differ by a root of unity of order dividing the ray index. -/
+theorem val_ratio_pow_rayIndexAt {D : D7} {c : ℝ} {v : HeightOneSpectrum (𝓞 D.host.F)}
+    {a : Fin D.R.m} {χ ψ : Formalism.L2.Host.HChar D.host.E} (hχ : χ ∈ CS D c v a)
+    (hψ : ψ ∈ CS D c v a) (p : HeightOneSpectrum (𝓞 D.host.E)) :
+    ((χ.val p : ℂ) / (ψ.val p : ℂ)) ^ rayIndexAt D v = 1 := by
+  have hk := GlobalTheory.LevelChars.raySubgroup_le_ker_ratio
+    (GlobalTheory.T.heckeChar_trivial_on_congruenceUnitIdeles D.host.E (Sv D v) 2) hχ hψ
+  let x := Neutral.B1.localIdele D.host.E p
+    (Formalism.L2.Host.atFin p (Formalism.L2.Host.unif p))
+  have h := MonoidHom.mem_ker.1 (hk (Subgroup.pow_index_mem _ x))
+  rw [map_pow] at h
+  change (χ.1 x * (ψ.1 x)⁻¹) ^ rayIndexAt D v = 1 at h
+  rw [← div_eq_mul_inv] at h
+  simpa only [Formalism.L2.Host.HChar.val, Formalism.L2.Host.HChar.locK,
+    Formalism.L2.Host.HChar.loc, MonoidHom.comp_apply, Units.val_pow_eq_pow_val,
+    Units.val_div_eq_div_val, Units.val_one] using congrArg Units.val h
+
 theorem CS_ncard_le (D : D7) (c : ℝ) (v : HeightOneSpectrum (𝓞 D.host.F)) (a : Fin D.R.m) :
     (CS D c v a).ncard ≤ rayIndexAt D v :=
   (GlobalTheory.LevelChars.heckeFin_card_le_of GlobalTheory.T.heckeChar_trivial_on_congruenceUnitIdeles
