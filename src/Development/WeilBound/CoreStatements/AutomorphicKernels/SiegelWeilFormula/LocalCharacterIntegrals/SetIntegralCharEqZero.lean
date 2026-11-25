@@ -232,21 +232,6 @@ theorem mul_le_half_of_small {C r : ℝ} (hC : 0 ≤ C) (hr : r ≤ 1 / (2 * (C 
   nlinarith
 
 
-/-- On the ultrametric open ball of contractive perturbations, left multiplication is an isometry. -/
-private theorem small_left {n : ℕ} {C : ℝ}
-    (hm : ∀ a b : Matrix (Fin n) (Fin n) (Fv F v ⊗[F] E), nM v (a * b) ≤ C * nM v a * nM v b)
-    {x : Matrix (Fin n) (Fin n) (Fv F v ⊗[F] E)} (hx : C * nM v x < 1) (b : Matrix (Fin n) (Fin n) (Fv F v ⊗[F] E)) :
-    nM v ((1 + x) * b) = nM v b := by
-  by_cases hb : b = 0
-  · subst b; exact congrArg (nM v) (Matrix.mul_zero _)
-  calc
-    nM v ((1 + x) * b) = nM v (b + x * b) := by
-      apply congrArg (nM v)
-      exact (Matrix.add_mul _ _ _).trans (congrArg (fun m => m + x * b) (Matrix.one_mul b))
-    _ = nM v b := nM_add_eq_of_lt ?_
-  have hp := lt_of_le_of_ne (nM_nonneg b) (fun h => hb (nM_eq_zero.mp h.symm))
-  exact (hm x b).trans_lt (by simpa using mul_lt_mul_of_pos_right hx hp)
-
 /-- Congruence preserves the coordinate norm as soon as both one-sided perturbations contract. -/
 theorem normPres_of_contractive (σ : E →ₐ[F] E) {n : ℕ} {C : ℝ}
     (hm : ∀ a b : Matrix (Fin n) (Fin n) (Fv F v ⊗[F] E), nM v (a * b) ≤ C * nM v a * nM v b)
@@ -259,7 +244,7 @@ theorem normPres_of_contractive (σ : E →ₐ[F] E) {n : ℕ} {C : ℝ}
       apply congrArg N
       rw [cs_add, cs_one]
       exact Matrix.mul_assoc _ _ _
-    _ = N (b * (1 + x)) := small_left hm hs _
+    _ = N (b * (1 + x)) := one_add_mul_norm hm hs _
     _ = N (b + b * x) := by
       apply congrArg N
       rw [Matrix.mul_add, Matrix.mul_one]
@@ -269,29 +254,6 @@ theorem normPres_of_contractive (σ : E →ₐ[F] E) {n : ℕ} {C : ℝ}
   apply nM_add_eq_of_lt
   have hp := lt_of_le_of_ne (nM_nonneg b) (fun h => hb (nM_eq_zero.mp h.symm))
   exact (hm b x).trans_lt (by simpa [mul_right_comm] using mul_lt_mul_of_pos_right hx hp)
-
-/-- No determinant-radius hypothesis is needed. The inverse perturbation has exactly the same norm. -/
-theorem inverse_of_contractive {n : ℕ} {C : ℝ}
-    (hm : ∀ a b : Matrix (Fin n) (Fin n) (Fv F v ⊗[F] E), nM v (a * b) ≤ C * nM v a * nM v b)
-    {x : Matrix (Fin n) (Fin n) (Fv F v ⊗[F] E)} (hx : C * nM v x < 1) :
-    ∃ y : Matrix (Fin n) (Fin n) (Fv F v ⊗[F] E), (1 + x) * (1 + y) = 1 ∧ (1 + y) * (1 + x) = 1 ∧ nM v y = nM v x := by
-  let f := Algebra.lmul (Fv F v) _ (1 + x)
-  have hi : Function.Injective f := LinearMap.ker_eq_bot.mp <| by
-    rw [LinearMap.ker_eq_bot']
-    intro b hb
-    apply nM_eq_zero.mp
-    exact (small_left hm hx b).symm.trans ((congrArg (nM v) hb).trans nM_zero)
-  obtain ⟨u, hu⟩ : IsUnit (1 + x) := IsUnit.isUnit_iff_mulLeft_bijective.mpr
-    ⟨hi, LinearMap.injective_iff_surjective.mp hi⟩
-  let y : Matrix (Fin n) (Fin n) (Fv F v ⊗[F] E) := ↑u⁻¹ - 1
-  have hy : 1 + y = ↑u⁻¹ := by dsimp [y]; abel
-  have hyL : (1 + x) * (1 + y) = 1 := by rw [hy, ← hu, Units.mul_inv]
-  refine ⟨y, hyL, by rw [hy, ← hu, Units.inv_mul], ?_⟩
-  have e : (1 + x) * y = -x := by
-    apply eq_neg_of_add_eq_zero_right
-    apply add_left_cancel (a := (1 : Matrix (Fin n) (Fin n) (Fv F v ⊗[F] E)))
-    simpa only [add_zero, mul_add, mul_one, add_assoc] using hyL
-  exact (small_left hm hx y).symm.trans ((congrArg (nM v) e).trans (nM_neg x))
 
 /-- Both conclusions hold on an explicit closed ball in the original coordinate norm. -/
 theorem common_radius_of_bounds (σ : E →ₐ[F] E) {n : ℕ} {Cm Cs : ℝ} (hm0 : 0 ≤ Cm)
