@@ -34,6 +34,51 @@ universe u
 
 theorem ReducedBasisBound.full : ReducedBasisBound.Statement := ReducedBasisBound.proof
 
+/-- In coordinates, the trace dual enlarges the Hermitian dual by an index bounded by
+the clearing integer for the inverse different to the power of the rational dimension. -/
+theorem traceHerm_relIndex_factor {F E : Type*} [Field F] [Field E] [NumberField E] [Algebra F E]
+    [Algebra.IsQuadraticExtension F E] {W : Type*} [AddCommGroup W] [Module E W]
+    {ι : Type*} [Fintype ι] (h : HermitianForm F E W) (v : Basis ι E W)
+    (hT : (traceHerm h v).Nondegenerate) (hfull : CoordLatticeFullRank.Statement v)
+    (δ : ℤ)
+    (hdiff : ∀ z : E, (∀ a : 𝓞 E, ∃ n : ℤ, Algebra.trace ℚ E ((a : E) * z) = n) →
+      IsIntegral ℤ ((δ : E) * z))
+    {D : ℕ} (La : AddSubgroup W) (hLa : IsDIntegral h D La) :
+    let L := La.map (v.equivFun : W →ₗ[E] ι → E).toAddMonoidHom
+    let B := (traceHerm h v).dualSubmodule L.toIntSubmodule
+    L.toIntSubmodule ≤ B ∧ ∃ a : ℕ, a ∣ δ.natAbs ^ finrank ℚ (ι → E) ∧
+      L.relIndex B.toAddSubgroup = La.relIndex (dualLattice h La) * a := by
+  classical
+  let φ := (v.equivFun : W →ₗ[E] ι → E).toAddMonoidHom
+  let L := La.map φ
+  let H := (dualLattice h La).map φ
+  let B := (traceHerm h v).dualSubmodule L.toIntSubmodule
+  have hφ : ∀ x, v.equivFun.symm (φ x) = x := v.equivFun.symm_apply_apply
+  have hLH : L ≤ H := AddSubgroup.map_mono (fun y hy x hx => hLa.integral y hy x hx)
+  have hHB : H ≤ B.toAddSubgroup := by
+    rintro _ ⟨y, hy, rfl⟩ _ ⟨x, hx, rfl⟩
+    change traceHerm h v (φ y) (φ x) ∈ (1 : Submodule ℤ ℚ)
+    rw [traceHerm_apply, hφ, hφ, Submodule.mem_one]
+    exact IsIntegrallyClosed.isIntegral_iff.mp (Algebra.isIntegral_trace
+      ((mem_integralClosure_iff ℤ E).mp (hy x hx)))
+  have hδB : ∀ y ∈ B, δ • y ∈ H := by
+    intro y hy
+    refine ⟨δ • v.equivFun.symm y, ?_, ?_⟩
+    · intro x hx
+      rw [map_zsmul, LinearMap.smul_apply, zsmul_eq_mul]
+      refine (mem_integralClosure_iff ℤ E).mpr (hdiff _ fun a => ?_)
+      obtain ⟨n, hn⟩ := Submodule.mem_one.mp
+        (hy (φ ((a : E) • x)) (AddSubgroup.mem_map_of_mem φ (hLa.isLattice.smul_mem a x hx)))
+      change algebraMap ℤ ℚ n = traceHerm h v y (φ ((a : E) • x)) at hn
+      rw [traceHerm_apply, hφ, LinearMap.map_smul, smul_eq_mul] at hn
+      exact ⟨n, hn.symm⟩
+    · rw [map_zsmul]; exact congrArg (δ • ·) (v.equivFun.apply_symm_apply y)
+  obtain ⟨hfg, hspan⟩ := hfull La hLa.isLattice
+  refine ⟨hLH.trans hHB, H.relIndex B.toAddSubgroup,
+    (traceHerm h v).relIndex_dual_dvd_pow_of_zsmul_mem hT L H hfg hspan δ hδB, ?_⟩
+  rw [← AddSubgroup.relIndex_mul_relIndex L H B.toAddSubgroup hLH hHB,
+    AddSubgroup.relIndex_map_map_of_injective La (dualLattice h La) v.equivFun.injective]
+
 section Closed
 
 variable {F E : Type*} [Field F] [Field E] [NumberField F] [NumberField E] [Algebra F E]
@@ -46,10 +91,64 @@ variable (h : HermitianForm F E W) (v : Basis ι E W)
 
 
 omit [NumberField F] [IsTotallyReal F] [DecidableEq ι] in
-theorem ArchCovolumeBound.full : ArchCovolumeBound.Statement h v :=
-  ArchCovolumeBound.proof h v (CoordEmbedBasis.proof E ι) (IntegralFormCovolume.proof _ _ _)
-    (TraceHermNondegenerate.proof h v) (DualLatticeMultiple.proof h) (CoordLatticeFullRank.proof v)
+/-- With fixed coordinates and measure, the Hermitian dual index determines the squared
+covolume up to a divisor of a fixed power of the absolute field discriminant. -/
+theorem ArchCovolumeBound.index_factors :
+    ∃ C : ℝ, 0 < C ∧ ∀ (D : ℕ) (La : AddSubgroup W), IsDIntegral h D La →
+      ∃ _ : DiscreteTopology (archLattice v La), IsZLattice ℝ (archLattice v La) ∧
+        ∃ a : ℕ, a ∣ (NumberField.discr E).natAbs ^ finrank ℚ (ι → E) ∧
+          ZLattice.covolume (archLattice v La) ^ 2 =
+          C * (La.relIndex (dualLattice h La) : ℝ) * a := by
+  let e := Pi.basis fun _ : ι => integralBasis E
+  have hc := CoordEmbedBasis.proof E ι
+  have ht := TraceHermNondegenerate.proof h v
+  have hf := CoordLatticeFullRank.proof v
+  obtain ⟨C, hC, hformula⟩ := IntegralFormCovolume.index_formula _ _ _ (coordEmbed E ι) e
+    (traceHerm h v) volume (Measure.pi.isAddHaarMeasure _) ht hc.1
+    (by rw [hc.2, finrank_eq_card_basis e])
+  refine ⟨C, hC, ?_⟩
+  intro D La hLa
+  let φ := (v.equivFun : W →ₗ[E] ι → E).toAddMonoidHom
+  have harch : archLattice v La = AddSubgroup.toIntSubmodule ((La.map φ).map (coordEmbed E ι)) := by
+    rw [archLattice, AddSubgroup.map_map]
+    rfl
+  obtain ⟨hfg, hspan⟩ := hf La hLa.isLattice
+  obtain ⟨hint, a, ha, hidx⟩ := traceHerm_relIndex_factor h v ht hf (NumberField.discr E)
+    (isIntegral_discr_mul_of_integral_traces E) La hLa
+  obtain ⟨hd, hZ, hcov⟩ := hformula (La.map φ) hfg hspan hint
+  rw [harch]
+  refine ⟨hd, hZ, a, ha, ?_⟩
+  rw [hcov, hidx, Nat.cast_mul, mul_assoc]
 
+omit [NumberField F] [IsTotallyReal F] [DecidableEq ι] in
+/-- The two constants work for every cutoff and every full integral lattice. -/
+theorem ArchCovolumeBound.index_bounds :
+    ∃ c C : ℝ, 0 < c ∧ 0 < C ∧ ∀ (D : ℕ) (La : AddSubgroup W), IsDIntegral h D La →
+      ∃ _ : DiscreteTopology (archLattice v La), IsZLattice ℝ (archLattice v La) ∧
+        c * (La.relIndex (dualLattice h La) : ℝ) ≤ ZLattice.covolume (archLattice v La) ^ 2 ∧
+        ZLattice.covolume (archLattice v La) ^ 2 ≤ C * (La.relIndex (dualLattice h La) : ℝ) := by
+  obtain ⟨c, hc, hfactor⟩ := ArchCovolumeBound.index_factors h v
+  let N := (NumberField.discr E).natAbs ^ finrank ℚ (ι → E)
+  have hN : 0 < N := pow_pos (Int.natAbs_pos.mpr (NumberField.discr_ne_zero E)) _
+  refine ⟨c, c * N, hc, mul_pos hc (by exact_mod_cast hN), fun D La hLa => ?_⟩
+  obtain ⟨hd, hZ, a, ha, hv⟩ := hfactor D La hLa
+  have hpos : (1 : ℝ) ≤ a := by exact_mod_cast Nat.pos_of_dvd_of_pos ha hN
+  have hle : (a : ℝ) ≤ N := by exact_mod_cast Nat.le_of_dvd hN ha
+  have hn : 0 ≤ c * (La.relIndex (dualLattice h La) : ℝ) := mul_nonneg hc.le (Nat.cast_nonneg _)
+  refine ⟨hd, hZ, ?_, ?_⟩
+  · rw [hv]
+    exact le_mul_of_one_le_right hn hpos
+  · rw [hv, mul_right_comm c (N : ℝ)]
+    exact mul_le_mul_of_nonneg_left hle hn
+
+omit [NumberField F] [IsTotallyReal F] [DecidableEq ι] in
+theorem ArchCovolumeBound.full : ArchCovolumeBound.Statement h v := by
+  obtain ⟨_, C, _, hC, hbound⟩ := ArchCovolumeBound.index_bounds h v
+  intro D
+  refine ⟨Real.sqrt (C * D), fun La hLa => ?_⟩
+  obtain ⟨hd, hZ, _, hcov⟩ := hbound D La hLa
+  refine ⟨hd, hZ, (le_abs_self _).trans (Real.abs_le_sqrt (hcov.trans ?_))⟩
+  exact mul_le_mul_of_nonneg_left (by exact_mod_cast hLa.index_le) hC.le
 
 omit [NumberField F] [IsTotallyReal F] [_root_.NumberField.IsTotallyComplex E] in
 theorem MajorantTransport.full : MajorantTransport.Statement h v := MajorantTransport.proof h v
