@@ -88,16 +88,24 @@ theorem exists_colouring_maximal_ideals :
     ∃ c : Ideal (𝓞 K) → Fin (finrank ℚ K), ∀ p : ℕ, p.Prime → ∀ P Q : Ideal (𝓞 K),
       P.IsMaximal → Q.IsMaximal → (p : 𝓞 K) ∈ P → (p : 𝓞 K) ∈ Q → c P = c Q → P = Q := by
   classical
-  haveI : Nonempty (Fin (finrank ℚ K)) := ⟨⟨0, finrank_pos⟩⟩
+  have : Nonempty (Fin (finrank ℚ K)) := ⟨⟨0, finrank_pos⟩⟩
   have key : ∀ p : ℕ, ∃ e : Ideal (𝓞 K) → Fin (finrank ℚ K), p.Prime →
       Set.InjOn e {P | P.IsMaximal ∧ (p : 𝓞 K) ∈ P} := by
     intro p
     by_cases hp : p.Prime
     · have hp' : Prime (p : ℤ) := Nat.prime_iff_prime_int.mp hp
       have hp0 : Ideal.span {(p : ℤ)} ≠ ⊥ := by simpa using hp.ne_zero
-      haveI hmax : (Ideal.span {(p : ℤ)}).IsMaximal :=
+      have hmax : (Ideal.span {(p : ℤ)}).IsMaximal :=
         ((Ideal.span_singleton_prime hp'.ne_zero).mpr hp').isMaximal hp0
-      have hc := Ideal.card_primesOverFinset_le_finrank (𝓞 K) ℚ K hp0
+      let Zp := Ideal.span {(p : ℤ)}
+      let := Fintype.ofFinite (Zp.primesOver (𝓞 K))
+      have hc : (IsDedekindDomain.primesOverFinset Zp (𝓞 K)).card ≤ finrank ℚ K := by
+        rw [← Set.ncard_coe_finset, IsDedekindDomain.coe_primesOverFinset hp0,
+          ← Set.fintypeCard_eq_ncard, ← RingOfIntegers.rank K,
+          ← Ideal.sum_ramification_inertia_eq_finrank Zp (𝓞 K), ← Finset.card_univ,
+          Finset.card_eq_sum_ones]
+        exact sum_le_sum fun P _ =>
+          Nat.mul_pos (Ideal.ramificationIdx_pos ℤ P.val) (Ideal.inertiaDeg_pos P.val ℤ)
       have hsub : {P : Ideal (𝓞 K) | P.IsMaximal ∧ (p : 𝓞 K) ∈ P} ⊆
           (IsDedekindDomain.primesOverFinset (Ideal.span {(p : ℤ)}) (𝓞 K) : Set _) := by
         rintro P ⟨hP, hpP⟩
@@ -146,7 +154,7 @@ theorem ncard_ideal_absNorm_eq_le {n : ℕ} (hn : n ≠ 0) :
     | cons Q s ih =>
       intro hs
       obtain ⟨ih0, ih⟩ := ih fun R hR => hs R (Multiset.mem_cons_of_mem hR)
-      haveI hQ : Q.IsMaximal := hs Q (Multiset.mem_cons_self Q s)
+      have hQ : Q.IsMaximal := hs Q (Multiset.mem_cons_self Q s)
       obtain ⟨q, g, hg, hqQ, hq, H⟩ := Ideal.exists_prime_and_absNorm_eq_pow Q
       have hQ0 : Ideal.absNorm Q ≠ 0 := H ▸ pow_ne_zero _ hq.ne_zero
       by_cases hcol : c Q = c P
@@ -158,7 +166,7 @@ theorem ncard_ideal_absNorm_eq_le {n : ℕ} (hn : n ≠ 0) :
           rw [Multiset.count_cons_self, hN, hp.factorization_pow, Finsupp.single_eq_same]
           ring
         · rw [Multiset.count_cons_of_ne (Ne.symm hQP), H, hq.factorization_pow,
-            Finsupp.single_apply, if_neg, zero_add]
+            Finsupp.single_apply, ite_eq_right, zero_add]
           rintro rfl
           exact hQP (hc q hq Q P hQ hP hqQ hpP hcol)
       · rw [Multiset.filter_cons_of_neg (p := fun Q => c Q = c P) s hcol]
@@ -252,40 +260,63 @@ theorem minkowski_const_le_one :
   refine le_trans ?_ h2
   gcongr
 
+/-- The Minkowski norm cutoff for ideal-class representatives, with the signature factor retained. -/
+noncomputable def minkowskiBound : ℝ :=
+  (4 / Real.pi) ^ InfinitePlace.nrComplexPlaces K *
+    ((Nat.factorial (finrank ℚ K) : ℝ) / (finrank ℚ K : ℝ) ^ finrank ℚ K * √|(discr K : ℝ)|)
+
+theorem one_le_minkowskiBound : 1 ≤ minkowskiBound K := by
+  obtain ⟨I, _, hI⟩ := NumberField.exists_ideal_in_class_of_norm_le (1 : ClassGroup (𝓞 K))
+  exact (Nat.one_le_cast.2 (Ideal.absNorm_pos_of_nonZeroDivisors I)).trans hI
+
+theorem minkowskiBound_le_sqrt_abs_discr : minkowskiBound K ≤ √|(discr K : ℝ)| := by
+  unfold minkowskiBound
+  rw [← mul_assoc]
+  exact mul_le_of_le_one_left (Real.sqrt_nonneg _) (minkowski_const_le_one K)
+
 theorem exists_ideal_in_class_of_norm_le_sqrt_discr (C : ClassGroup (𝓞 K)) :
     ∃ I : (Ideal (𝓞 K))⁰, ClassGroup.mk0 I = C ∧
       (Ideal.absNorm (I : Ideal (𝓞 K)) : ℝ) ≤ √|(discr K : ℝ)| := by
   obtain ⟨I, hI, hN⟩ := exists_ideal_in_class_of_norm_le C
-  refine ⟨I, hI, hN.trans ?_⟩
-  rw [← mul_assoc]
-  exact mul_le_of_le_one_left (Real.sqrt_nonneg _) (minkowski_const_le_one K)
+  exact ⟨I, hI, hN.trans (minkowskiBound_le_sqrt_abs_discr K)⟩
 
 theorem one_le_sqrt_abs_discr : 1 ≤ √|(discr K : ℝ)| := by
   rw [Real.one_le_sqrt]
   exact_mod_cast Int.one_le_abs (discr_ne_zero K)
 
-theorem classNumber_le_sqrt_discr_mul_pow_pred :
-    (classNumber K : ℝ) ≤
-      √|(discr K : ℝ)| * (1 + Real.log √|(discr K : ℝ)|) ^ (finrank ℚ K - 1) := by
+/-- Count ideal-class representatives only up to the actual Minkowski cutoff. The finite
+divisor sum retains the integrality information lost in its logarithmic majorant. -/
+theorem classNumber_le_sum_zeta_pow_minkowski :
+    classNumber K ≤ ∑ n ∈ Ioc 0 ⌊minkowskiBound K⌋₊, (ζ ^ finrank ℚ K : ArithmeticFunction ℕ) n := by
   classical
-  set X := √|(discr K : ℝ)| with hXdef
-  have hX : 1 ≤ X := one_le_sqrt_abs_discr K
-  refine le_trans ?_ (sum_zeta_pow_le (k := finrank ℚ K) finrank_pos hX)
-  rw [Nat.cast_le]
-  choose g hg hN using exists_ideal_in_class_of_norm_le_sqrt_discr K
+  choose g hg hN using NumberField.exists_ideal_in_class_of_norm_le (K := K)
   have hginj : Function.Injective fun C => (g C : Ideal (𝓞 K)) := by
     intro C D h
     rw [← hg C, ← hg D, Subtype.ext h]
   rw [classNumber, ← card_univ, card_eq_sum_card_fiberwise
-    (f := fun C => Ideal.absNorm (g C : Ideal (𝓞 K))) (t := Ioc 0 ⌊X⌋₊)]
+    (f := fun C => Ideal.absNorm (g C : Ideal (𝓞 K))) (t := Ioc 0 ⌊minkowskiBound K⌋₊)]
   · refine sum_le_sum fun n hn => le_trans ?_ (ncard_ideal_absNorm_eq_le K (mem_Ioc.mp hn).1.ne')
     rw [← Set.ncard_coe_finset]
     exact Set.ncard_le_ncard_of_injOn (fun C => (g C : Ideal (𝓞 K)))
-      (fun C hC => by simpa using hC) hginj.injOn (Ideal.finite_setOfPred_absNorm_eq n)
+      (fun C hC => by simpa using hC) hginj.injOn (Ring.HasFiniteQuotients.finite_absNorm_eq n)
   · intro C _
     rw [mem_coe, mem_Ioc]
     exact ⟨Nat.pos_of_ne_zero (Ideal.absNorm_ne_zero_of_nonZeroDivisors _),
       Nat.le_floor (hN C)⟩
+
+/-- Signature-sensitive bound for the class number of a number field. -/
+theorem classNumber_le_minkowski_mul_pow :
+    (classNumber K : ℝ) ≤ minkowskiBound K * (1 + Real.log (minkowskiBound K)) ^ (finrank ℚ K - 1) := by
+  exact (Nat.cast_le.2 (classNumber_le_sum_zeta_pow_minkowski K)).trans
+    (sum_zeta_pow_le finrank_pos (one_le_minkowskiBound K))
+
+theorem classNumber_le_sqrt_discr_mul_pow_pred :
+    (classNumber K : ℝ) ≤
+      √|(discr K : ℝ)| * (1 + Real.log √|(discr K : ℝ)|) ^ (finrank ℚ K - 1) := by
+  have hM := minkowskiBound_le_sqrt_abs_discr K
+  have hpos : 0 < minkowskiBound K := lt_of_lt_of_le zero_lt_one (one_le_minkowskiBound K)
+  have hlog := Real.log_nonneg (one_le_minkowskiBound K)
+  exact (classNumber_le_minkowski_mul_pow K).trans (by gcongr)
 
 theorem classNumber_le_sqrt_discr_mul_pow :
     (classNumber K : ℝ) ≤
