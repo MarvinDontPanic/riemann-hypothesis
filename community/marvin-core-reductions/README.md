@@ -2,12 +2,14 @@
 
 Cores 12, 36 and 40 each contain the **entire scored source**: one `Solution.lean`, importing only the frozen interface. Core 28 is distributed as a small delta on the pinned public winning tree, rather than a second copy of 147 files. These are local results, not hosted scores. The standalone challenge files are staged here for review, not imported into `src/`.
 
-| Core | This proof: tokens | Verified leaderboard entry | Strongest prior public source located |
+**Comparison, 2026-11-25 05:25 UTC:** Only Core 36 is shorter than the other public proofs checked. Core 12 has a shorter hosted proof. Cores 28 and 40 beat the hosted counts but have shorter public packages in #19. The figures are normalized tokens, not hosted grades for these packages.
+
+| Core | This package | Hosted leader | Best other public proof checked |
 |---|---:|---:|---:|
-| [12: Cyclotomic power-series rigidity](core12/Solution.lean) | 1,063 | [1,236](https://riemann.verifytask.cn/api/attempt/101654) | Same public entry |
-| [28: Fundamental-domain point bound](core28/README.md) | 257,305 | [260,150](https://riemann.verifytask.cn/api/attempt/103706) | Same pinned public package |
-| [36: Pure-family decomposition](core36/Solution.lean) | 227 | [306](https://riemann.verifytask.cn/api/attempt/105760) | [230](https://github.com/vlarin/riemann-hypothesis/blob/f7b0b95fbef89763c756d6e2b82f4edd2f4b5c54/community/fortytwo-phase3-4331/core36/Solution.lean) |
-| [40: Residual-spectrum constant terms](core40/Solution.lean) | 431 | [539](https://riemann.verifytask.cn/api/attempt/104025) | [505](https://github.com/vlarin/riemann-hypothesis/blob/a77fbba030230e2c8a7edb1429ccbafcf47f7b17/community/fortytwo-phase3-4331/core40/Solution.lean) |
+| [12: Cyclotomic power-series rigidity](core12/Solution.lean) | 1,063 | [1,035 · #106915](https://riemann.verifytask.cn/api/attempt/106915) | Same hosted proof |
+| [28: Fundamental-domain point bound](core28/README.md) | 257,305 (147 files) | [260,150 · #103706](https://riemann.verifytask.cn/api/attempt/103706) | [255,800 (146 files) · #19](https://github.com/vlarin/riemann-hypothesis/tree/497f3c3a72a2f4cd350a0209abf7c94aab16083f/community/fortytwo-phase3-4331/core28) |
+| [36: Pure-family decomposition](core36/Solution.lean) | **227** | [303 · #106947](https://riemann.verifytask.cn/api/attempt/106947) | [230 · #19](https://github.com/vlarin/riemann-hypothesis/blob/f7b0b95fbef89763c756d6e2b82f4edd2f4b5c54/community/fortytwo-phase3-4331/core36/Solution.lean) |
+| [40: Residual-spectrum constant terms](core40/Solution.lean) | 431 | [489 · #106877](https://riemann.verifytask.cn/api/attempt/106877) | [404 · #19](https://github.com/vlarin/riemann-hypothesis/blob/3ae8aa0ecc66f0bef690cc15dd374a157d48967c/community/fortytwo-phase3-4331/core40/Solution.lean) |
 
 - **12:** One Weierstrass division and induction serve both the single-branch and split completeness statements. The proof builds on the published work of Andrew Pullin (#101654), dugbt607 (#100599), LewyM (#99275), and Levent Alpöge.
 - **28:** Reusing the existing positivity lemma removes four otherwise necessary source files from the dependency closure, without changing the target. [Patch and reconstruction instructions](core28/README.md).
