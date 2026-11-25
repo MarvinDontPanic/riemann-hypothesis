@@ -66,7 +66,8 @@ theorem arMix_of_mixHt : ArchInteg →
   obtain ⟨Φ₀, hΦ₀, -⟩ := GlobalTheory.T.exists_linear_functional_of_symmetric_multiadditive k X p D F (fun K K' hK => hT.iso _ K K' _ le_rfl hgen hK)
     (fun K e => hT.symm _ K e _ le_rfl hgen) (fun A B K => hT.add D A B K _ le_rfl hgen) (Option ι) F'
 
-  have hpow (i : Fin (D + 2)) : let m : Option ι → ℤ := fun o => o.elim i.val n
+  have hpow (i : Fin (D + 1)) :
+      let m : Option ι → ℤ := fun o => o.elim 1 (fun j => GlobalTheory.centeredPencilWeights D i * n j)
       Φ (lin (fun o => (m o : ℝ)) ^ (D + 1)) =
         Φ₀.toAddMonoidHom ((∑ o, m o • (MvPolynomial.X o : MvPolynomial (Option ι) ℝ)) ^ (D + 1)) := by
     intro m
@@ -77,10 +78,8 @@ theorem arMix_of_mixHt : ArchInteg →
     rw [Finset.prod_const, Finset.card_univ, Fintype.card_fin] at h₂
     rw [HermLB.IsSelfInter.unique hX (hΦ.1 m) h₁, ← lin_intCast]
     exact h₂.symm
-  have hpol := GlobalTheory.polarisation_mixed_terms_on_pencil (MvPolynomial (Option ι) ℝ)
-    Φ₀.toAddMonoidHom ι MvPolynomial.X (D + 1) Φ n hpow 1 (Nat.succ_pos D)
-  simp only [pow_one, Nat.add_sub_cancel] at hpol
-  rw [hpol, mul_comm (MvPolynomial.X none)]
+  rw [GlobalTheory.polarisation_first_mixed_term_on_centered_pencil (MvPolynomial (Option ι) ℝ)
+    Φ₀.toAddMonoidHom ι MvPolynomial.X D Φ n hpow]
 
   let m₀ : Option ι → ℤ := fun o => o.elim 1 0
   let m₁ : Option ι → ℤ := fun o => o.elim 0 n
