@@ -50,7 +50,7 @@ private theorem ray_le_ker (Y : Stages) (c : GridRatioColumn Y.B.toPre sc) :
 
 end GridRatioColumn
 
-private theorem unr_of_not_allBad (Y : Stages) {sc : Consts} (G : GridOver Y.B.toPre sc)
+theorem unr_of_not_allBad (Y : Stages) {sc : Consts} (G : GridOver Y.B.toPre sc)
     {p : HeightOneSpectrum (𝓞 Y.B.toPre.host.E)} (hp : p ∉ allBad Y.toD7) (a : Fin Y.B.toPre.R.m) :
     (G.character a).UnrAt p := by
   obtain ⟨X, hX, T, L, G⟩ := G
@@ -64,6 +64,17 @@ private theorem unr_of_not_allBad (Y : Stages) {sc : Consts} (G : GridOver Y.B.t
 def movingPrimeClass (D : D7) (p : HeightOneSpectrum (𝓞 D.host.E)) :
     Ideles D.host.E ⧸ movingRayGroup D :=
   QuotientGroup.mk (localIdele D.host.E p (atFin p (unif p)))
+
+/-- The ratio of an original column pair, descended to the common moving ray quotient. -/
+def GridRatioColumn.rayChar (Y : Stages) {sc : Consts} (c : GridRatioColumn Y.B.toPre sc) :
+    (Ideles Y.toD7.host.E ⧸ movingRayGroup Y.toD7) →* ℂˣ :=
+  QuotientGroup.lift _ ((c.left.character c.index) * (c.right.character c.index)⁻¹).1
+    (by exact c.ray_le_ker Y)
+
+theorem GridRatioColumn.rayChar_read (Y : Stages) {sc : Consts} (c : GridRatioColumn Y.B.toPre sc)
+    (p : HeightOneSpectrum (𝓞 Y.toD7.host.E)) :
+    ((c.rayChar Y (movingPrimeClass Y.toD7 p) : ℂˣ) : ℂ) = c.read p :=
+  c.eval_read p
 
 private theorem movingPrimeClass_eq_iff (D : D7) (p : HeightOneSpectrum (𝓞 D.host.E))
     (x : Ideles D.host.E) : movingPrimeClass D p = QuotientGroup.mk x ↔
