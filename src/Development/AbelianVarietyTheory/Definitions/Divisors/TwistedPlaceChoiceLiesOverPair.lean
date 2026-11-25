@@ -252,12 +252,8 @@ theorem rootField_finrank (G : GridData Lc sc) :
     (Complex.isPrimitiveRoot_exp _ (rootOrder_ne_zero G)).intermediateField_adjoin_isCyclotomicExtension ℚ
   exact IsCyclotomicExtension.Rat.finrank _ _
 
-theorem FieldHas.rootField_le_iff {G : GridData Lc sc} (M : IntermediateField ℚ ℂ) :
-    FieldHas G M.val.toRingHom ↔
-      (∀ i, 1 ≤ i → i ≤ D.R.m → (G.ch.chiH i).ValuesIn 0 M.val.toRingHom) ∧
-        rootField G ≤ M := by
-  rw [FieldHas.iff_values_and_primitiveRoot]
-  apply and_congr_right'
+private theorem primitiveRoot_iff_rootField_le (G : GridData Lc sc) (M : IntermediateField ℚ ℂ) :
+    (∃ z : M, IsPrimitiveRoot z (rootOrder G)) ↔ rootField G ≤ M := by
   let : NeZero (rootOrder G) := ⟨rootOrder_ne_zero G⟩
   have hz := Complex.isPrimitiveRoot_exp _ (rootOrder_ne_zero G)
   change (∃ z : M, IsPrimitiveRoot z (rootOrder G)) ↔ IntermediateField.adjoin ℚ {_} ≤ M
@@ -271,6 +267,21 @@ theorem FieldHas.rootField_le_iff {G : GridData Lc sc} (M : IntermediateField �
     exact M.pow_mem y.property d
   · intro h
     exact ⟨⟨_, h⟩, IsPrimitiveRoot.of_map_of_injective (f := M.val) hz M.val.injective⟩
+
+/-- The roots clause alone, independent of any character values. -/
+theorem rootField_le_iff_roots (G : GridData Lc sc) (M : IntermediateField ℚ ℂ) :
+    rootField G ≤ M ↔ ∀ v ∈ G.pl.S0, ∃ z : M, IsPrimitiveRoot z (Ideal.absNorm v.asIdeal ^ G.pl.depth sc v) :=
+  (primitiveRoot_iff_rootField_le G M).symm.trans <|
+    exists_primitiveRoot_lcm_iff G.pl.S0 (fun v => Ideal.absNorm v.asIdeal ^ G.pl.depth sc v)
+      (fun v _ => pow_ne_zero _ (Ideal.absNorm_eq_zero_iff.not.2 v.ne_bot))
+
+theorem FieldHas.rootField_le_iff {G : GridData Lc sc} (M : IntermediateField ℚ ℂ) :
+    FieldHas G M.val.toRingHom ↔
+      (∀ i, 1 ≤ i → i ≤ D.R.m → (G.ch.chiH i).ValuesIn 0 M.val.toRingHom) ∧
+        rootField G ≤ M := by
+  rw [FieldHas.iff_values_and_primitiveRoot]
+  apply and_congr_right'
+  exact primitiveRoot_iff_rootField_le G M
 
 theorem lambdaGrid_apply (G : GridData Lc sc) (l : ℕ) (j a : Fin D.R.m) :
     (lamOf G).lam0 l j a = Lc.C.mu0 j * Lc.C.delAt l / G.ch.chiH (a.1 + 1) := (div_eq_mul_inv _ _).symm
