@@ -82,11 +82,16 @@ theorem exists_pageN (eps : ℝ) (he : 0 < eps) : ∃ e : ℝ → ℕ, ∀ x ≥
 
 /-- It suffices to find good outer scales arbitrarily far out. The dyadic page may
 be chosen separately at each point of the window for the given prime pair. -/
-def CofinalVWinAt (ψ : PChar) (Ct : ℝ) : Prop :=
+def CofinalVWinFor (ψ : PChar) (cut : ℝ → ℝ → ℝ) : Prop :=
   ∀ eps : ℝ, 0 < eps → eps < 1 / 52 → ∃ J : ℝ, 1 ≤ J ∧
     ∀ A : ℝ, ∃ X ≥ A, ∀ q d : ℕ, WinPair eps (X ^ (1 / J)) q d →
       ∃ Y : ℝ, X ^ (1 / J) ≤ Y ∧ Y ^ (2 : ℝ) ≤ X ∧ ∀ x : ℝ, Y ≤ x → x ≤ Y ^ (2 : ℝ) →
-        ∃ e : ℕ, PageN eps x e ∧ VAt ψ eps Ct q d e x
+        ∃ e : ℕ, PageN eps x e ∧ ∀ (E : Type) [Field E] [NumberField E], IsChiField ψ e q d E →
+          VVle E ⌊cut eps x⌋₊ (Real.sqrt (Real.exp (x ^ eps)))
+
+/-- The power cutoff is a special case of a general window cutoff. -/
+def CofinalVWinAt (ψ : PChar) (Ct : ℝ) : Prop :=
+  CofinalVWinFor ψ (fun _ x => x ^ Ct)
 
 theorem VWinAt.cofinal {ψ : PChar} {Ct : ℝ} (h : VWinAt ψ Ct) : CofinalVWinAt ψ Ct := by
   intro eps he he'
