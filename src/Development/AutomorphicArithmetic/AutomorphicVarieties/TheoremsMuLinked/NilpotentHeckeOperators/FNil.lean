@@ -48,6 +48,76 @@ theorem heckeDiscriminant_pow_of_eq (hij : i ≠ j) (hi : (U i - a) ^ r = 0)
     exact pow_eq_zero_of_le (by omega) hz
   exact zero_dvd_iff.mp (hzero ▸ pow_dvd_pow_of_dvd hd ((r + s) / 2))
 
+-- The ideal of deviations of a finite cluster has a quantified nilpotence order.
+private theorem sum_ideals_pow {S ι : Type*} [CommRing S] (s : Finset ι)
+    (J : ι → Ideal S) (r : ι → ℕ) (h : ∀ i ∈ s, J i ^ (r i + 1) = 0) :
+    (∑ i ∈ s, J i) ^ ((∑ i ∈ s, r i) + 1) = 0 := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => simp
+  | @insert i s hi ih =>
+    rw [Finset.sum_insert hi, Finset.sum_insert hi]
+    apply (Commute.all _ _).add_pow_eq_zero_of_add_le_succ_of_pow_eq_zero
+      (h i (Finset.mem_insert_self ..)) (ih fun j hj => h j (Finset.mem_insert_of_mem hj))
+    omega
+
+/-- In a collision cluster, every ordered pair contributes one factor in the
+ideal of deviations. Count those factors against the nilpotence order of that ideal. -/
+theorem heckeDiscriminant_pow_of_cluster {m k : ℕ} (e : Fin m ↪ Fin n) (r : Fin m → ℕ)
+    (hnil : ∀ i, (U (e i) - a) ^ (r i + 1) = 0)
+    (horder : (∑ i, r i) < m * (m - 1) * k) : heckeDiscriminant q U ^ k = 0 := by
+  classical
+  let I := fun i => Ideal.span ({U (e i) - a} : Set S)
+  let J := ∑ i, I i
+  have hJ : J ^ ((∑ i, r i) + 1) = 0 := by
+    apply sum_ideals_pow
+    intro i _
+    simp [I, Ideal.span_singleton_pow, hnil]
+  have mem (i : Fin m) : U (e i) - a ∈ J := by
+    have le : I i ≤ J := by
+      change I i ≤ ∑ j, I j
+      exact Finset.single_le_sum (fun _ _ => bot_le) (Finset.mem_univ i)
+    exact le (Ideal.subset_span (Set.mem_singleton _))
+  let A := fun i j => (U i - U j) * (U i - q * U j)
+  let row := fun i => ∏ j ∈ Finset.univ.erase i, A i j
+  have hrow (i : Fin m) : row (e i) ∈ J ^ (m - 1) := by
+    let t := (Finset.univ.erase i).map e
+    have hprod : (∏ j ∈ t, A (e i) j) ∈ ∏ _j ∈ t, J := by
+      apply Ideal.prod_mem_prod
+      intro j hj
+      obtain ⟨l, _, rfl⟩ := Finset.mem_map.mp hj
+      apply J.mul_mem_right
+      simpa only [sub_sub_sub_cancel_right] using J.sub_mem (mem i) (mem l)
+    have hs : t ⊆ Finset.univ.erase (e i) := by
+      rintro j hj
+      obtain ⟨l, hl, rfl⟩ := Finset.mem_map.mp hj
+      exact Finset.mem_erase.mpr ⟨fun h => (Finset.mem_erase.mp hl).1 (e.injective h), Finset.mem_univ _⟩
+    apply (J ^ (m - 1)).mem_of_dvd (Finset.prod_dvd_prod_of_subset _ _ (A (e i)) hs)
+    simpa [t, Finset.card_erase_of_mem] using hprod
+  have hprod := Ideal.prod_mem_prod (s := Finset.univ) (I := fun _ : Fin m => J ^ (m-1))
+    (x := fun i => row (e i)) (fun i _ => hrow i)
+  have hd : (∏ i : Fin m, row (e i)) ∣ heckeDiscriminant q U := by
+    rw [← Finset.prod_map]
+    exact Finset.prod_dvd_prod_of_subset _ _ row (Finset.subset_univ _)
+  have hm : heckeDiscriminant q U ∈ J ^ (m * (m-1)) := by
+    apply (J ^ (m * (m-1))).mem_of_dvd hd
+    simpa [← pow_mul, Nat.mul_comm] using hprod
+  have hk := Ideal.pow_mem_pow hm k
+  rw [← pow_mul] at hk
+  simpa [hJ] using (Ideal.pow_le_pow_right (Nat.succ_le_of_lt horder)) hk
+
+/-- A cluster larger than the common nilpotence order already kills the discriminant. -/
+theorem heckeDiscriminant_eq_zero_of_cluster {m N : ℕ} (e : Fin m ↪ Fin n)
+    (hm : N < m) (hU : ∀ i, (U (e i) - a) ^ N = 0) :
+    heckeDiscriminant q U = 0 := by
+  cases N with
+  | zero =>
+    have h : (1 : S) = 0 := by simpa using hU ⟨0, hm⟩
+    exact (subsingleton_of_zero_eq_one h.symm).elim _ _
+  | succ N =>
+    have hlt : m * N < m * (m - 1) := Nat.mul_lt_mul_of_pos_left (by omega) (by omega)
+    simpa using heckeDiscriminant_pow_of_cluster (q := q) (k := 1) e (fun _ => N) hU (by simpa using hlt)
+
 -- Preserve the original uniform estimate used by the global patching argument.
 theorem fNil :
     ∀ (K S : Type) [CommRing K] [IsDomain K] [CommRing S] (f : K →+* S) (n N q : ℕ) (α : Fin n → K) (U : Fin n → S), (∀ k, (U k - f (α k)) ^ N = 0) → ¬ (∀ i i', i ≠ i' → α i ≠ α i' ∧ α i ≠ (q : K) * α i') → (∏ i : Fin n, ∏ i' ∈ Finset.univ.erase i, (U i - U i') * (U i - (q : S) * U i')) ^ (2 * N) = 0 := by
