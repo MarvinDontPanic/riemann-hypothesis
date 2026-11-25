@@ -73,19 +73,68 @@ theorem one_window_at_cyclic_modulus (N : ℕ) [NeZero N] [IsCyclic (ZMod N)ˣ] 
   obtain ⟨ξ, hξ⟩ := one_narrow_window_at_cyclic_modulus N
   exact ⟨ξ, fun b hb => hξ b 2 hb (by norm_num)⟩
 
+/-- Each chosen character needs one positive window width, but Sha estimates only along some
+sequence of epsilons tending to zero. The excess over the rank exponent need not be uniform. -/
+def CoinitialDyadicWindows (ψ : PChar) : Prop :=
+  ∃ w > (1 : ℝ), ∀ η > (0 : ℝ), ∃ eps > (0 : ℝ), eps < η ∧
+    ∃ b > rankExponent eps, DyadicWindowAtWidth ψ eps w b
+
+/-- Any fixed power above the limiting exponent works throughout a sufficiently small ε range. -/
+theorem DyadicVWinBelowWidth.coinitial {ψ : PChar} {δ w b : ℝ} (h : DyadicVWinBelowWidth ψ δ w b)
+    (hδ : 0 < δ) (hw : 1 < w) (hb : 797 / 2 < b) : CoinitialDyadicWindows ψ := by
+  refine ⟨w, hw, fun η hη => ?_⟩
+  let cutoff := min (min (min η δ) (1 / 52)) ((b - 797 / 2) / (929 / 16))
+  have hc : 0 < cutoff := lt_min (lt_min (lt_min hη hδ) (by norm_num))
+    (div_pos (sub_pos.mpr hb) (by norm_num))
+  obtain ⟨eps, he, ht⟩ := exists_between hc
+  have hh := lt_min_iff.mp ht
+  obtain ⟨hηδ, h52⟩ := lt_min_iff.mp hh.1
+  obtain ⟨heη, heδ⟩ := lt_min_iff.mp hηδ
+  refine ⟨eps, he, heη, b, ?_, h eps he h52 heδ⟩
+  have h' := (lt_div_iff₀ (show (0 : ℝ) < 929 / 16 by norm_num)).mp hh.2
+  unfold rankExponent
+  linarith
+
+theorem cyclicLevel_of_green_coinitial_windows (hG : GlobalTheory.GLq.Green) (h : SideHyps)
+    (ψ : PChar) (win : CoinitialDyadicWindows ψ) : (Level.cyc ψ).ZeroFreeLevel := by
+  obtain ⟨w, hw, win⟩ := win
+  obtain ⟨la, hla, hlw⟩ := exists_between hw
+  obtain ⟨P, hP, hH⟩ := exists_coinitial_host_of_dyadic ψ hla hlw win
+  exact h.elim fun side => cyclicLevel_of_coinitial_hosts hla
+    (_root_.GlobalTheory.Fc.forall_goal_of_shape_of_hyps _ _ _ _ (shape_closed_link_n_of_green_on hG)
+      trivial trivial side) hP ψ hH
+
+theorem every_character_of_green_coinitial_windows (hG : GlobalTheory.GLq.Green) (h : SideHyps)
+    (tested : Set PChar) (cover : ∀ ψ : PChar, ∃ ρ ∈ tested, ψ ∈ (Level.cyc ρ).KEPT)
+    (win : ∀ ρ ∈ tested, CoinitialDyadicWindows ρ) : UpperTheory.EveryCharacter := by
+  apply imprimitive
+  intro ψ _
+  obtain ⟨ρ, hρ, hψ⟩ := cover ψ
+  exact cyclicLevel_of_green_coinitial_windows hG h ρ (win ρ hρ) ψ hψ
+
+theorem one_coinitial_window_at_cyclic_modulus (N : ℕ) [NeZero N] [IsCyclic (ZMod N)ˣ] :
+    ∃ ξ : DirichletCharacter ℂ N, CoinitialDyadicWindows (PChar.of ξ) →
+      GlobalTheory.GLq.Green → SideHyps →
+      ∀ (χ : DirichletCharacter ℂ N) (s : ℂ), 1 / 2 < s.re → (χ ≠ 1 ∨ s ≠ 1) →
+        DirichletCharacter.LFunction χ s ≠ 0 := by
+  obtain ⟨ξ, hξ⟩ := Level.exists_cyc_keeps_all_of_isCyclic_units (n := N)
+  refine ⟨ξ, fun win hG h χ => imprimitive_of_primitive χ ?_⟩
+  exact cyclicLevel_of_green_coinitial_windows hG h _ win (PChar.of χ) (hξ χ)
+
 /-- It suffices to test the finite list of dyadic page boundaries in each retained window. -/
 theorem cyclicLevel_of_green_dyadic_window (hG : GlobalTheory.GLq.Green) (h : SideHyps) (ψ : PChar)
     (win : ∃ b > (797 / 2 : ℝ), ∃ w > 1, ∃ δ > 0, DyadicVWinBelowWidth ψ δ w b) :
     (Level.cyc ψ).ZeroFreeLevel := by
-  obtain ⟨b, hb, w, hw, δ, hδ, hV⟩ := (has_dyadic_power_window_iff ψ).mp win
-  exact cyclicLevel_of_green_narrow_window hG h b w hb hw ψ ⟨δ, hδ, hV⟩
+  obtain ⟨b, hb, w, hw, δ, hδ, hV⟩ := win
+  exact cyclicLevel_of_green_coinitial_windows hG h ψ (hV.coinitial hδ hw hb)
 
 theorem every_character_of_green_dyadic_cover (hG : GlobalTheory.GLq.Green) (h : SideHyps)
     (tested : Set PChar) (cover : ∀ ψ : PChar, ∃ ρ ∈ tested, ψ ∈ (Level.cyc ρ).KEPT)
     (win : ∀ ρ ∈ tested, ∃ b > (797 / 2 : ℝ), ∃ w > 1, ∃ δ > 0, DyadicVWinBelowWidth ρ δ w b) :
     UpperTheory.EveryCharacter :=
-  every_character_of_green_narrow_cover hG h tested cover fun ρ hρ =>
-    (has_dyadic_power_window_iff ρ).mp (win ρ hρ)
+  every_character_of_green_coinitial_windows hG h tested cover fun ρ hρ => by
+    obtain ⟨b, hb, w, hw, δ, hδ, hV⟩ := win ρ hρ
+    exact hV.coinitial hδ hw hb
 
 theorem one_dyadic_window_at_cyclic_modulus (N : ℕ) [NeZero N] [IsCyclic (ZMod N)ˣ] :
     ∃ ξ : DirichletCharacter ℂ N,
@@ -93,9 +142,9 @@ theorem one_dyadic_window_at_cyclic_modulus (N : ℕ) [NeZero N] [IsCyclic (ZMod
       GlobalTheory.GLq.Green → SideHyps →
       ∀ (χ : DirichletCharacter ℂ N) (s : ℂ), 1 / 2 < s.re → (χ ≠ 1 ∨ s ≠ 1) →
         DirichletCharacter.LFunction χ s ≠ 0 := by
-  obtain ⟨ξ, hξ⟩ := one_narrow_window_at_cyclic_modulus N
+  obtain ⟨ξ, hξ⟩ := one_coinitial_window_at_cyclic_modulus N
   refine ⟨ξ, fun win => ?_⟩
-  obtain ⟨b, hb, w, hw, δ, hδ, hv⟩ := (has_dyadic_power_window_iff _).mp win
-  exact hξ b w hb hw ⟨δ, hδ, hv⟩
+  obtain ⟨b, hb, w, hw, δ, hδ, hV⟩ := win
+  exact hξ (hV.coinitial hδ hw hb)
 
 end UpperTheory.Top

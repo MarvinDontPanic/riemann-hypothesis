@@ -17,8 +17,11 @@ namespace FReq
 
 variable (G : FReq)
 
+/-- Impose a request only at those exponents where it will be used. -/
+def whenEps (P : ℝ → Prop) : FReq := fun s φ H TT t => P s.eps → G s φ H TT t
+
 /-- Impose a host request only at small positive exponents. -/
-def below (δ : ℝ) : FReq := fun s φ H TT t => s.eps < δ → G s φ H TT t
+def below (δ : ℝ) : FReq := G.whenEps (· < δ)
 
 def req : HostReq := fun _ s R H _ => G s R.toFrame H.toHostAx H.TT R.t
 
