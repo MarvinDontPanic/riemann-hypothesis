@@ -1,6 +1,6 @@
 module
 
-public import Development.AbelianVarietyTheory.Proofs.IwasawaDecomposition.GridSinglePrimeTest
+public import Development.AbelianVarietyTheory.Proofs.IwasawaDecomposition.GridPrimeTestDensity
 public import Development.AbelianVarietyTheory.Proofs.IwasawaDecomposition.UniformGridRootField
 public import Development.AbelianVarietyTheory.Proofs.IwasawaDecomposition.UniformGridCoefficientField
 
@@ -64,6 +64,34 @@ theorem exists_single_prime_grid_field (Y : Stages) (sc : Consts) :
   exact Set.image_subset_iff.trans (test J F href)
 
 #print axioms exists_single_prime_grid_field
+
+/-- A fixed list of original columns generates the full uniform coefficient field
+over every reference at every prime of one fixed packet. The displayed density is
+that of this packet, not that of all primes at which some test could succeed. -/
+theorem exists_totient_density_single_prime_grid_field (Y : Stages) (sc : Consts) :
+    ∃ e : ℕ, e ∣ movingRayExponent Y.toD7 ∧
+      (∀ m : ℕ, e ∣ m ↔ ∀ s : GridRatioSample Y.B.toPre sc, s.value ^ m = 1) ∧
+    ∃ menu : Finset (GridRatioColumn Y.B.toPre sc), menu.card ≤ e.primeFactors.card ∧
+    ∃ C : Finset (Ideles Y.toD7.host.E ⧸ movingRayGroup Y.toD7),
+      (e.totient : ℝ) / e ≤ (C.card : ℝ) / (movingRayGroup Y.toD7).index ∧
+      (∀ p : HeightOneSpectrum (𝓞 Y.toD7.host.E), movingPrimeClass Y.toD7 p ∈ C ↔
+        menu.lcm (fun c => orderOf (c.read p)) = e) ∧
+      ∀ bad : Finset (HeightOneSpectrum (𝓞 Y.toD7.host.E)),
+        let P := {p : HeightOneSpectrum (𝓞 Y.toD7.host.E) | movingPrimeClass Y.toD7 p ∈ C ∧
+          p ∉ bad ∧ p ∉ allBad Y.toD7 ∧ p.asIdeal.inertiaDeg ℤ = 1}
+        P.HasDirichletDensity (C.card / (movingRayGroup Y.toD7).index) ∧
+        ∀ p ∈ P, (∀ (G : GridOver Y.B.toPre sc) (a : Fin Y.B.toPre.R.m),
+          (G.character a).UnrAt p) ∧ menu.lcm (fun c => orderOf (c.read p)) = e ∧
+          ∀ J : GridOver Y.B.toPre sc, uniformGridField Y.B.toPre sc =
+            gridCoefficientField J.grid ⊔ IntermediateField.adjoin ℚ
+              ((fun c : GridRatioColumn Y.B.toPre sc => c.read p) '' ↑menu) := by
+  obtain ⟨e, he, hleast, menu, hc, C, hbound, hpacket, htest⟩ := exists_totient_density_single_prime_grid_tests Y sc
+  refine ⟨e, he, hleast, menu, hc, C, hbound, hpacket, fun bad => ⟨(htest bad).1, fun p hp => ?_⟩⟩
+  obtain ⟨hu, horder, test⟩ := (htest bad).2 p hp
+  refine ⟨hu, horder, fun J => eq_adjoin_of_value_test J _ fun F href => ?_⟩
+  exact Set.image_subset_iff.trans (test J F href)
+
+#print axioms exists_totient_density_single_prime_grid_field
 
 end GlobalTheory.GridField
 end
