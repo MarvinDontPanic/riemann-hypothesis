@@ -17,15 +17,14 @@ public import Mathlib.RingTheory.DiscreteValuationRing.Basic
 public import Development.AutomorphicSpectrum.Proofs.AdelicProofs.PadicEmbeddingDiscreteValuationRing
 public import Mathlib.RingTheory.DedekindDomain.Different
 public import Development.AutomorphicSpectrum.Proofs.AlgebraProofs.DifferentTwistedGeneratorExists
-public import Development.AutomorphicSpectrum.Proofs.AlgebraProofs.PureFamilyDecomposition
 public import Development.AutomorphicSpectrum.Proofs.GeometryProofs.CmLieModelAction
 public import Development.AutomorphicSpectrum.Proofs.GeometryProofs.CmPackProductFrame
 public import Development.AutomorphicSpectrum.Proofs.GeometryProofs.CmPackPureFrame
-public import Development.AutomorphicSpectrum.Proofs.GeometryProofs.PeriodsSpanPureDecomposition
 import Mathlib.Tactic.Linter.HaveILetI
 import Mathlib.Tactic.Linter.Style
 import Std.Tactic.BVDecide.Normalize.Prop
 import Development.AutomorphicSpectrum.Proofs.GeometryProofs.LieModelEigenvectorsAction
+import Development.AbelianVarietyTheory.Proofs.ModuliProofs.TwoMulEqOfIsTypeFn
 import Development.AbelianVarietyTheory.Proofs.CubicalLineBundles.CmHostRootNegDiscriminantNeNegSelf
 
 -- This file was produced by scripts/clump.py from the modules listed below.
@@ -1567,14 +1566,11 @@ theorem intFrames_fin : ∀ (E : Type) [Field E] [NumberField E] [IsCMField E] (
     hrt true _ _ (by simp [sgnRt, hrt2])
   obtain ⟨N, hN, hspan⟩ := span_fam (H := H) ℓ.prop x b hloc hb
   have hN0 : 0 < N := Nat.pos_of_ne_zero fun h => hN (h ▸ dvd_zero _)
-  obtain ⟨n, hn, hnspan⟩ := hloc.2
-  have hn0 : 0 < n := Nat.pos_of_ne_zero fun h => hn (h ▸ dvd_zero _)
-  have hdec := (_root_.GlobalTheory.CompanionTheory.Ar.Fl.pure_family_spans_pure_sublattice E H (FU.Di i) g ty P hP D.p D.q x n hx hnspan).1
-  have hg := (_root_.GlobalTheory.CompanionTheory.Ar.Fl.exists_pure_vectors_periods_span_of_finite_index E H (FU.Di i) g ty P hP n hn0 hdec).1
   have hcardI : Fintype.card ((Fin D.p × Fin f) ⊕ (Fin D.q × Fin f)) = g := by
-    rw [hg, (FU.sig i).1, (FU.sig i).2, ← hf, Nat.mul_div_cancel_left _ (by norm_num : 0 < 2)]
+    have hg := GlobalTheory.PeriodDatum.two_mul_eq_of_isTypeFn H hty
+    rw [← hf] at hg
     simp only [Fintype.card_sum, Fintype.card_prod, Fintype.card_fin]
-    ring
+    nlinarith
   let e : Fin g ≃ (Fin D.p × Fin f) ⊕ (Fin D.q × Fin f) := (Fintype.equivFinOfCardEq hcardI).symm
   let bI : (Fin D.p × Fin f) ⊕ (Fin D.q × Fin f) → Bool := Sum.elim (fun _ => true) (fun _ => false)
   let aI : ∀ q, PureType.lat hP (sgnRt H (bI q)) := fun q => match q with
