@@ -118,13 +118,13 @@ theorem heckeDiscriminant_eq_zero_of_cluster {m N : ℕ} (e : Fin m ↪ Fin n)
     have hlt : m * N < m * (m - 1) := Nat.mul_lt_mul_of_pos_left (by omega) (by omega)
     simpa using heckeDiscriminant_pow_of_cluster (q := q) (k := 1) e (fun _ => N) hU (by simpa using hlt)
 
--- Preserve the original uniform estimate used by the global patching argument.
-theorem fNil :
-    ∀ (K S : Type) [CommRing K] [IsDomain K] [CommRing S] (f : K →+* S) (n N q : ℕ) (α : Fin n → K) (U : Fin n → S), (∀ k, (U k - f (α k)) ^ N = 0) → ¬ (∀ i i', i ≠ i' → α i ≠ α i' ∧ α i ≠ (q : K) * α i') → (∏ i : Fin n, ∏ i' ∈ Finset.univ.erase i, (U i - U i') * (U i - (q : S) * U i')) ^ (2 * N) = 0 := by
+/-- Uniform discriminant bound when either an equal or a shifted pair collides. -/
+theorem fNil_order :
+    ∀ (K S : Type) [CommRing K] [IsDomain K] [CommRing S] (f : K →+* S) (n N q : ℕ) (α : Fin n → K) (U : Fin n → S), (∀ k, (U k - f (α k)) ^ N = 0) → ¬ (∀ i i', i ≠ i' → α i ≠ α i' ∧ α i ≠ (q : K) * α i') → (∏ i : Fin n, ∏ i' ∈ Finset.univ.erase i, (U i - U i') * (U i - (q : S) * U i')) ^ (2 * N - 1) = 0 := by
   intro K S _ _ _ f n N q α U hU hne
   simp only [not_forall] at hne
   obtain ⟨i, j, hij, hα⟩ := hne
-  change heckeDiscriminant (q : S) U ^ (2 * N) = 0
+  change heckeDiscriminant (q : S) U ^ (2 * N - 1) = 0
   by_cases h : α i = α j
   · have hi := hU i
     rw [h] at hi
@@ -132,6 +132,11 @@ theorem fNil :
   · have e : α i = (q : K) * α j := not_not.mp fun h' => hα ⟨h, h'⟩
     have hi := hU i
     rw [e, map_mul, map_natCast] at hi
-    exact pow_eq_zero_of_le (by omega) (heckeDiscriminant_pow_of_shift hij hi (hU j))
+    simpa [two_mul] using heckeDiscriminant_pow_of_shift hij hi (hU j)
+
+theorem fNil :
+    ∀ (K S : Type) [CommRing K] [IsDomain K] [CommRing S] (f : K →+* S) (n N q : ℕ) (α : Fin n → K) (U : Fin n → S), (∀ k, (U k - f (α k)) ^ N = 0) → ¬ (∀ i i', i ≠ i' → α i ≠ α i' ∧ α i ≠ (q : K) * α i') → (∏ i : Fin n, ∏ i' ∈ Finset.univ.erase i, (U i - U i') * (U i - (q : S) * U i')) ^ (2 * N) = 0 := by
+  intro K S _ _ _ f n N q α U hU hne
+  exact pow_eq_zero_of_le (Nat.sub_le _ _) (fNil_order K S f n N q α U hU hne)
 
 end UpperTheory.V.Th

@@ -3,12 +3,12 @@ module
 public import Development.AutomorphicArithmetic.AutomorphicVarieties.TheoremsMuLinked.NilpotentHeckeOperators.FNil
 
 /-!
-# Exact universal nilpotence order for a cluster of equal residues
+# Sharp nilpotence orders for Hecke discriminants
 
 The upper bound comes from counting differences in the deviation ideal. For the converse
 use independent nilpotent coordinates over ℚ. Their balanced monomial survives exactly
 below the claimed threshold; translating the coordinates by one makes the shifted factors
-units at `q = 2`.
+units at `q = 2`. A shifted pair realizes the worst case under the original nonregularity hypothesis.
 -/
 
 @[expose] public section
@@ -239,6 +239,72 @@ theorem heckeDiscriminant_universal_pow_iff {m N k : ℕ} (hN : 0 < N) :
     · simpa [Nat.sub_add_cancel hN] using hU
     · simpa [mul_comm (N - 1), Nat.mul_assoc] using
         (Nat.mul_lt_mul_of_pos_left (show N - 1 < (m - 1) * k by omega) hm)
+
+/-- The central binomial term survives reduction modulo both coordinate powers. -/
+private theorem trunc_shift_pow_ne_zero (t : ℕ) :
+    (truncX 2 (t + 1) 0 - 2 * truncX 2 (t + 1) 1) ^ (t + t) ≠ 0 := by
+  classical
+  let d : Fin 2 →₀ ℕ := Finsupp.equivFunOnFinite.symm (fun _ => t)
+  let a : Fin 2 → ℚ := ![1, -2]
+  have hsum : d.sum (fun _ m => m) = t + t := by
+    simp [Finsupp.sum_of_support_subset d (Finset.subset_univ d.support), d, two_mul]
+  have hpoly : (X 0 - 2 * X 1 : MvPolynomial (Fin 2) ℚ) = ∑ i, a i • X i := by
+    simp [a, Fin.sum_univ_two, smul_eq_C_mul, map_ofNat]
+    ring
+  rw [truncX, truncX, ← map_ofNat (Ideal.Quotient.mk _) 2, ← map_mul, ← map_sub, ← map_pow]
+  apply trunc_mk_ne_zero_of_coeff (d := d) _ (fun _ => by simp [d])
+  rw [hpoly, coeff_linearCombination_X_pow_of_fintype, ite_eq_left hsum,
+    d.prod_fintype _ (fun _ => pow_zero _), Fin.prod_univ_two]
+  have hm : 0 < d.multinomial := Nat.multinomial_pos _ _
+  simp [a, hm.ne']
+
+/-- At residues 2 and 1, just the forward shifted difference is a nonunit. -/
+private theorem trunc_shift_pair_ne_zero (t : ℕ) :
+    heckeDiscriminant 2 ![2 + truncX 2 (t + 1) 0, 1 + truncX 2 (t + 1) 1] ^ (t + t) ≠ 0 := by
+  let x := truncX 2 (t + 1) 0
+  let y := truncX 2 (t + 1) 1
+  have hx : IsNilpotent x := ⟨_, truncX_pow ..⟩
+  have hy : IsNilpotent y := ⟨_, truncX_pow ..⟩
+  have h1 : IsUnit (1 + (x - y)) := ((Commute.all _ _).isNilpotent_sub hx hy).isUnit_one_add
+  have h2 : IsUnit (-3 + (y - 2 * x)) := by
+    apply IsNilpotent.isUnit_add_left_of_commute _ _ (.all _ _)
+    · exact (Commute.all _ _).isNilpotent_sub hy ((Commute.all _ _).isNilpotent_mul_left hx)
+    · have hu : IsUnit (-3 : ℚ) := by norm_num
+      simpa only [map_neg, map_ofNat] using hu.map (algebraMap ℚ (Trunc 2 (t + 1)))
+  have he : heckeDiscriminant 2 ![2 + x, 1 + y] =
+      (x - 2 * y) * ((1 + (x - y)) * (-(1 + (x - y))) * (-3 + (y - 2 * x))) := by
+    simp [heckeDiscriminant, Fin.prod_univ_two,
+      show univ.erase (0 : Fin 2) = {1} by decide, show univ.erase (1 : Fin 2) = {0} by decide]
+    ring
+  rw [he, mul_pow, ne_eq, ((h1.mul h1.neg).mul h2).pow (t + t) |>.mul_left_eq_zero]
+  exact trunc_shift_pow_ne_zero t
+
+/-- In the original nonregular Hecke configuration, the least exponent that
+works uniformly for deviations of order at most `N` is `2 * N - 1`. -/
+theorem fNil_universal_pow_iff {N k : ℕ} :
+    (∀ (K S : Type) [CommRing K] [IsDomain K] [CommRing S] (f : K →+* S)
+      (n q : ℕ) (α : Fin n → K) (U : Fin n → S), (∀ i, (U i - f (α i)) ^ N = 0) →
+      ¬ (∀ i j, i ≠ j → α i ≠ α j ∧ α i ≠ (q : K) * α j) →
+      heckeDiscriminant (q : S) U ^ k = 0) ↔ 2 * N - 1 ≤ k := by
+  constructor
+  · intro h
+    rcases N with _ | t
+    · simp
+    by_contra! hlt
+    let f := algebraMap ℚ (Trunc 2 (t + 1))
+    let V := ![2 + truncX 2 (t + 1) 0, 1 + truncX 2 (t + 1) 1]
+    let α : Fin 2 → ℚ := ![2, 1]
+    have hV : ∀ i, (V i - f (α i)) ^ (t + 1) = 0 := by
+      intro i
+      fin_cases i <;> simp [V, α, f, map_ofNat, truncX_pow]
+    have hn : ¬ (∀ i j, i ≠ j → α i ≠ α j ∧ α i ≠ (2 : ℚ) * α j) := by
+      intro hreg
+      have hbad := (hreg 0 1 (by decide)).2
+      norm_num [α] at hbad
+    have hz := h ℚ _ f 2 2 α V hV hn
+    exact trunc_shift_pair_ne_zero t (pow_eq_zero_of_le (by omega : k ≤ t + t) hz)
+  · intro hk K S _ _ _ f n q α U hU hn
+    exact pow_eq_zero_of_le hk (fNil_order K S f n N q α U hU hn)
 
 end
 
