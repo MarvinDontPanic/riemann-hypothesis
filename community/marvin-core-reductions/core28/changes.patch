@@ -1,0 +1,12 @@
+--- a/ReciprocityTheory/ReductiveGroups/ArithmeticGeometry/FundamentalDomains/FundamentalDomainExtension/NearSupremumBounds/FdFjNearSupOf.lean
++++ b/ReciprocityTheory/ReductiveGroups/ArithmeticGeometry/FundamentalDomains/FundamentalDomainExtension/NearSupremumBounds/FdFjNearSupOf.lean
+@@ -2,3 +2,3 @@
+ import ReciprocityTheory.ReductiveGroups.ArithmeticGeometry.FundamentalDomains.BoundedSectionAlgebra
+-import ReciprocityTheory.ReductiveGroups.ArithmeticGeometry.FundamentalDomains.FractionalSliceDomains
++import ReciprocityTheory.ReductiveGroups.ArithmeticGeometry.FundamentalDomains.MajorantFamilyNorms
+ import ReciprocityTheory.ReductiveGroups.ArithmeticGeometry.FundamentalDomains.IsotropicCoefficientSplitting
+@@ -128,3 +128,3 @@
+   have htV (τ) : 0 < X.ttV (X.embV ξ) x0 τ :=
+-    one_div_pos.mpr (mul_pos (TwoSidedBoostBounds.c_pos X.toData τ) (X.maj_pos hx0 τ (hiso' τ).2))
++    one_div_pos.mpr (mul_pos (MajorantFamilyNorms.c_pos X.toData τ) (X.maj_pos hx0 τ (hiso' τ).2))
+   have hν := BoundedSectionAlgebra.bounded_character_has_nonnegative_indices X.toData la (X.embV ξ) hiso' ν x0 hx0
