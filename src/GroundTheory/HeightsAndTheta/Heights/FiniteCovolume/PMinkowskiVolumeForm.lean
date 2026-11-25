@@ -1,6 +1,7 @@
 module
 
 public import Mathlib
+public import GroundTheory.HeightsAndTheta.Heights.FiniteCovolume.Blichfeldt
 public import GroundTheory.HeightsAndTheta.Heights.FiniteCovolume.SecondCountableTopologyArchUnitary
 
 @[expose] public section
@@ -12,13 +13,13 @@ open Module MeasureTheory Submodule
 variable (V : Type*) [NormedAddCommGroup V] [InnerProductSpace ℝ V] [FiniteDimensional ℝ V]
   (d : ℕ) [Fact (finrank ℝ V = d)]
 
-theorem MinkowskiVolumeForm.proof : MinkowskiVolumeForm.Statement V d := by
+private theorem packingBasis [MeasurableSpace V] [BorelSpace V]
+    (o : Orientation ℝ V (Fin d)) (b : Fin d → V) (lam : ℝ) (hlam : 0 < lam)
+    (hmin : ∀ z : Fin d → ℤ, z ≠ 0 → lam ≤ ‖∑ i, (z i : ℝ) • b i‖) :
+    ∃ B : Basis (Fin d) ℝ V, volume (ZSpan.fundamentalDomain B) = ENNReal.ofReal |o.volumeForm b| ∧
+      ∀ x ∈ span ℤ (Set.range B), x ≠ 0 → lam ≤ ‖x‖ := by
   classical
-  intro o b lam hlam hmin
-  let _ : MeasurableSpace V := borel V
-  have _ : BorelSpace V := ⟨rfl⟩
   have hd : finrank ℝ V = d := Fact.out
-
   have hcomb : ∀ x ∈ span ℤ (Set.range b), x ≠ 0 → lam ≤ ‖x‖ := by
     intro x hx hx0
     obtain ⟨z, rfl⟩ := (mem_span_range_iff_exists_fun ℤ).1 hx
@@ -47,7 +48,16 @@ theorem MinkowskiVolumeForm.proof : MinkowskiVolumeForm.Statement V d := by
   have hF : volume (ZSpan.fundamentalDomain B) = ENNReal.ofReal |o.volumeForm b| := by
     rw [measure_congr (ZSpan.fundamentalDomain_ae_parallelepiped B volume), ← o.measure_eq_volume,
       AlternatingMap.measure_parallelepiped, hB]
+  exact ⟨B, hF, hB ▸ hcomb⟩
 
+theorem MinkowskiVolumeForm.proof : MinkowskiVolumeForm.Statement V d := by
+  classical
+  intro o b lam hlam hmin
+  let _ : MeasurableSpace V := borel V
+  have _ : BorelSpace V := ⟨rfl⟩
+  have hd : finrank ℝ V = d := Fact.out
+
+  obtain ⟨B, hF, hcomb⟩ := packingBasis V d o b lam hlam hmin
   let e : OrthonormalBasis (Fin d) ℝ V := (stdOrthonormalBasis ℝ V).reindex (finCongr hd)
   set σ : ℝ := lam / Real.sqrt d with hσ
   have hσ0 : 0 ≤ σ := div_nonneg hlam.le (Real.sqrt_nonneg _)
@@ -90,7 +100,7 @@ theorem MinkowskiVolumeForm.proof : MinkowskiVolumeForm.Statement V d := by
   have hx0' : x ≠ 0 := by
     rintro rfl
     exact hx0 rfl
-  have h1 : lam ≤ ‖x‖ := hcomb x (by rw [← hB]; exact hxL) hx0'
+  have h1 : lam ≤ ‖x‖ := hcomb x hxL hx0'
   have h2 : ‖x‖ < lam := by
     rw [hs_mem] at hxs
     rcases Nat.eq_zero_or_pos d with hd0 | hdpos
@@ -110,5 +120,34 @@ theorem MinkowskiVolumeForm.proof : MinkowskiVolumeForm.Statement V d := by
             rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, hsq,
               Real.sqrt_sq hlam.le]
   linarith
+
+/-- Blichfeldt's bound in even dimension, expressed using the oriented basis volume. -/
+theorem MinkowskiVolumeForm.blichfeldt_even [Nontrivial V] (m : ℕ) (heven : d = 2 * m)
+    (o : Orientation ℝ V (Fin d)) (b : Fin d → V) (lam : ℝ) (hlam : 0 < lam)
+    (hmin : ∀ z : Fin d → ℤ, z ≠ 0 → lam ≤ ‖∑ i, (z i : ℝ) • b i‖) :
+    Real.pi ^ m * lam ^ d ≤ 2 ^ m * ((m + 1).factorial : ℝ) * |o.volumeForm b| := by
+  classical
+  let _ : MeasurableSpace V := borel V
+  have _ : BorelSpace V := ⟨rfl⟩
+  have hd : finrank ℝ V = d := Fact.out
+
+  obtain ⟨B, hF, hcomb⟩ := packingBasis V d o b lam hlam hmin
+  have : Countable (span ℤ (Set.range B)).toAddSubgroup :=
+    inferInstanceAs (Countable (span ℤ (Set.range B)))
+  have hb := blichfeldt_ball_le (ZSpan.isAddFundamentalDomain' B volume) hlam
+    hcomb
+  rw [hF] at hb
+  have hh := (ENNReal.ofReal_le_ofReal_iff (abs_nonneg _)).mp hb
+  generalize hA : |o.volumeForm b| = A at hh ⊢
+  rw [measureReal_def, InnerProductSpace.volume_ball_of_dim_even (hd.trans heven), hd, heven,
+    ENNReal.toReal_mul, ENNReal.toReal_pow, ENNReal.toReal_ofReal (by positivity : 0 ≤ lam / Real.sqrt 2),
+    ENNReal.toReal_ofReal (by positivity : 0 ≤ Real.pi ^ m / (m.factorial : ℝ)),
+    div_pow, pow_mul (Real.sqrt 2), Real.sq_sqrt (by norm_num)] at hh
+  push_cast at hh
+  rw [heven, Nat.factorial_succ, Nat.cast_mul, Nat.cast_add_one]
+  have hf : 0 < (m.factorial : ℝ) := by exact_mod_cast Nat.factorial_pos m
+  have hm : 0 ≤ (m : ℝ) := Nat.cast_nonneg m
+  field_simp at hh
+  nlinarith
 
 end GroundTheory.Heights₂.Heights.FiniteCovolume
