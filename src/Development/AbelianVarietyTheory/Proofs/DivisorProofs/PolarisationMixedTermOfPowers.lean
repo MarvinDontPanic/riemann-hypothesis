@@ -17,63 +17,64 @@ theorem addMonoidHom_intCast_mul_real {A : Type} [CommRing A] (θ : A →+ ℝ) 
     θ ((k : A) * z) = (k : ℝ) * θ z := by
   rw [← zsmul_eq_mul, map_zsmul, zsmul_eq_mul]
 
+/-- Agreement on `m+1` distinct diagonal powers on a pencil determines all of its
+mixed powers, not just the term that is linear in the first direction. -/
+theorem mixed_powers_of_pencil {A B : Type} [CommRing A] [CommRing B]
+    (φ : A →+ ℝ) (ψ : B →+ ℝ) (x y : A) (u v : B) (m : ℕ) (s : Fin (m + 1) ↪ ℤ)
+    (h : ∀ i, φ (((s i : A) * x + y) ^ m) = ψ (((s i : B) * u + v) ^ m))
+    (k : ℕ) (hk : k ≤ m) : φ (x ^ k * y ^ (m - k)) = ψ (u ^ k * v ^ (m - k)) := by
+  let P {R : Type} [CommRing R] (f : R →+ ℝ) (a b : R) : Polynomial ℝ :=
+    ∑ i ∈ Finset.range (m + 1), Polynomial.C (f (a ^ i * b ^ (m - i)) * (m.choose i : ℝ)) * Polynomial.X ^ i
+  have eval_P {R : Type} [CommRing R] (f : R →+ ℝ) (a b : R) (t : ℤ) :
+      (P f a b).eval (t : ℝ) = f (((t : R) * a + b) ^ m) := by
+    rw [add_pow, map_sum]
+    simp only [P, Polynomial.eval_finsetSum, Polynomial.eval_mul, Polynomial.eval_C,
+      Polynomial.eval_pow, Polynomial.eval_X]
+    apply Finset.sum_congr rfl
+    intro i _
+    have step : ((t : R) * a) ^ i * b ^ (m - i) * (m.choose i : R) =
+        ((t ^ i * (m.choose i : ℤ) : ℤ) : R) * (a ^ i * b ^ (m - i)) := by push_cast; ring
+    rw [step, addMonoidHom_intCast_mul_real]
+    push_cast
+    ring
+  have degree_P {R : Type} [CommRing R] (f : R →+ ℝ) (a b : R) : (P f a b).natDegree ≤ m :=
+    Polynomial.natDegree_sum_le_of_forall_le _ _ fun i hi =>
+      (Polynomial.natDegree_C_mul_X_pow_le _ _).trans (Nat.le_of_lt_succ (Finset.mem_range.mp hi))
+  have eqP : P φ x y = P ψ u v := by
+    apply Polynomial.eq_of_natDegree_lt_card_of_eval_eq _ _ (Int.cast_injective.comp s.injective)
+    · intro i
+      simpa only [Function.comp_apply, eval_P] using h i
+    · simpa using Nat.lt_succ_of_le (max_le (degree_P φ x y) (degree_P ψ u v))
+  have c := congrArg (fun p : Polynomial ℝ => p.coeff k) eqP
+  simp only [P, Polynomial.finsetSum_coeff, Polynomial.coeff_C_mul_X_pow,
+    Finset.sum_ite_eq, Finset.mem_range, ite_eq_left (Nat.lt_succ_of_le hk)] at c
+  exact mul_right_cancel₀ (by exact_mod_cast (Nat.choose_pos hk).ne') c
+
+/-- For a fixed bundle combination, the nonnegative parameters `0,…,m`
+recover every mixed coefficient of the degree-`m` pencil. -/
+theorem polarisation_mixed_terms_on_pencil (A : Type) [CommRing A] (θ : A →+ ℝ)
+    (ι : Type) [Fintype ι] (x : Option ι → A) (m : ℕ)
+    (Φ : MvPolynomial (Option ι) ℝ →ₗ[ℝ] ℝ) (n : ι → ℤ)
+    (h : ∀ i : Fin (m + 1), let r : Option ι → ℤ := fun o => o.elim i.val n
+      Φ (lin (fun o => (r o : ℝ)) ^ m) = θ ((∑ o, r o • x o) ^ m))
+    (k : ℕ) (hk : k ≤ m) :
+    Φ (MvPolynomial.X none ^ k * rename some (lin fun i => (n i : ℝ)) ^ (m - k)) =
+      θ (x none ^ k * (∑ i, n i • x (some i)) ^ (m - k)) := by
+  let L := rename some (lin fun i => (n i : ℝ))
+  let y := ∑ i, n i • x (some i)
+  let s : Fin (m + 1) ↪ ℤ := ⟨fun i => i.val, fun i j hij => Fin.ext (Int.ofNat_inj.mp hij)⟩
+  have test (i : Fin (m + 1)) :
+      Φ (((s i : MvPolynomial (Option ι) ℝ) * MvPolynomial.X none + L) ^ m) =
+        θ (((s i : A) * x none + y) ^ m) := by
+    change Φ ((((i.val : ℤ) : MvPolynomial (Option ι) ℝ) * MvPolynomial.X none + L) ^ m) =
+      θ ((((i.val : ℤ) : A) * x none + y) ^ m)
+    simpa [L, y, lin, Fintype.sum_option, zsmul_eq_mul, map_sum] using
+      h i
+  exact mixed_powers_of_pencil Φ.toAddMonoidHom θ (MvPolynomial.X none) L (x none) y m s test k hk
+
 theorem polarisation_mixed_term_of_powers : ∀ (A : Type) [CommRing A] (θ : A →+ ℝ) (ι : Type) [Fintype ι] (x : Option ι → A) (D : ℕ) (Φ : MvPolynomial (Option ι) ℝ →ₗ[ℝ] ℝ), (∀ n : Option ι → ℤ, Φ (lin (fun o => (n o : ℝ)) ^ (D + 1)) = θ ((∑ o, n o • x o) ^ (D + 1))) → ∀ n : ι → ℤ, Φ (MvPolynomial.X none * rename some (lin fun i => (n i : ℝ)) ^ D) = θ ((∑ i, n i • x (some i)) ^ D * x none) := by
   intro A _ θ ι _ x D Φ h n
-  set Y : MvPolynomial (Option ι) ℝ := MvPolynomial.X none with hY
-  set L : MvPolynomial (Option ι) ℝ := rename some (lin fun i => (n i : ℝ)) with hL
-  set y : A := ∑ i, n i • x (some i) with hy
-  set P : Polynomial ℝ := ∑ a ∈ Finset.range (D + 2),
-    Polynomial.C (Φ (Y ^ a * L ^ (D + 1 - a)) * ((D + 1).choose a : ℝ)) * Polynomial.X ^ a with hP
-  set Q : Polynomial ℝ := ∑ a ∈ Finset.range (D + 2),
-    Polynomial.C (θ (x none ^ a * y ^ (D + 1 - a)) * ((D + 1).choose a : ℝ)) * Polynomial.X ^ a with hQ
-  have key : ∀ t : ℤ, P.eval (t : ℝ) = Q.eval (t : ℝ) := by
-    intro t
-    have ht := h (fun o => Option.elim o t n)
-    have hlin : lin (fun o => ((Option.elim o t n : ℤ) : ℝ)) = MvPolynomial.C (t : ℝ) * Y + L := by
-      set_option synthInstance.maxHeartbeats 100000 in
-        simp only [lin, Fintype.sum_option, Option.elim, hY, hL, map_sum, map_mul, rename_C, rename_X]
-    have hsum : (∑ o, (Option.elim o t n) • x o) = (t : A) * x none + y := by
-      simp only [Fintype.sum_option, Option.elim, hy, zsmul_eq_mul]
-    set_option synthInstance.maxHeartbeats 100000 in
-      rw [hlin, hsum, add_pow, add_pow, map_sum, map_sum] at ht
-    simp only [hP, hQ, Polynomial.eval_finsetSum, Polynomial.eval_mul, Polynomial.eval_C,
-      Polynomial.eval_pow, Polynomial.eval_X]
-    have e1 : ∀ a : ℕ, Φ ((MvPolynomial.C (t : ℝ) * Y) ^ a * L ^ (D + 1 - a) * (((D + 1).choose a : ℕ) : MvPolynomial (Option ι) ℝ))
-        = Φ (Y ^ a * L ^ (D + 1 - a)) * ((D + 1).choose a : ℝ) * (t : ℝ) ^ a := by
-      intro a
-      have : (MvPolynomial.C (t : ℝ) * Y) ^ a * L ^ (D + 1 - a) * (((D + 1).choose a : ℕ) : MvPolynomial (Option ι) ℝ)
-          = ((t : ℝ) ^ a * ((D + 1).choose a : ℝ)) • (Y ^ a * L ^ (D + 1 - a)) := by
-        rw [MvPolynomial.smul_eq_C_mul, map_mul, map_pow, mul_pow, map_natCast]
-        ring
-      rw [this, map_smul, smul_eq_mul]
-      ring
-    have e2 : ∀ a : ℕ, θ (((t : A) * x none) ^ a * y ^ (D + 1 - a) * (((D + 1).choose a : ℕ) : A))
-        = θ (x none ^ a * y ^ (D + 1 - a)) * ((D + 1).choose a : ℝ) * (t : ℝ) ^ a := by
-      intro a
-      have : ((t : A) * x none) ^ a * y ^ (D + 1 - a) * (((D + 1).choose a : ℕ) : A)
-          = (((t ^ a * ((D + 1).choose a : ℤ)) : ℤ) : A) * (x none ^ a * y ^ (D + 1 - a)) := by
-        push_cast
-        ring
-      rw [this, addMonoidHom_intCast_mul_real]
-      push_cast
-      ring
-    simp only [e1, e2] at ht
-    exact ht
-  have hPQ : P = Q := by
-    apply Polynomial.eq_of_infinite_eval_eq
-    apply Set.Infinite.mono (s := Set.range (fun t : ℤ => (t : ℝ)))
-    · rintro _ ⟨t, rfl⟩
-      exact key t
-    · exact Set.infinite_range_of_injective Int.cast_injective
-  have hc := congrArg (fun p => _root_.AddMonoidAlgebra.coeff (M := ℕ) p 1) hPQ
-  simp only [hP, hQ, Polynomial.finsetSum_coeff, Polynomial.coeff_C_mul_X_pow] at hc
-  simp only [Finset.sum_ite_eq, Finset.mem_range] at hc
-  rw [if_pos (by omega), if_pos (by omega)] at hc
-  · simp only [pow_one, Nat.choose_one_right, Nat.add_sub_cancel] at hc
-    have hD : ((D + 1 : ℕ) : ℝ) ≠ 0 := by positivity
-    push_cast at hc hD
-    have := mul_right_cancel₀ hD hc
-    rw [mul_comm (y ^ D)]
-    exact this
+  simpa [mul_comm] using polarisation_mixed_terms_on_pencil A θ ι x (D + 1) Φ n
+    (fun i => h (fun o => o.elim i.val n)) 1 (Nat.succ_pos D)
 
 end GlobalTheory
