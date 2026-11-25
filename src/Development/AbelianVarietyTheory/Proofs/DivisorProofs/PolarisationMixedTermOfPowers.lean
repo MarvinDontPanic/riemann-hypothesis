@@ -50,6 +50,28 @@ theorem mixed_powers_of_pencil {A B : Type} [CommRing A] [CommRing B]
     Finset.sum_ite_eq, Finset.mem_range, ite_eq_left (Nat.lt_succ_of_le hk)] at c
   exact mul_right_cancel₀ (by exact_mod_cast (Nat.choose_pos hk).ne') c
 
+open Polynomial in
+/-- Fewer than `m + 1` polynomial probes cannot determine the values of an arbitrary
+additive measurement on all the first `m + 1` monomials. -/
+theorem exists_measurement_vanishing_on_probes {m r : ℕ} (hr : r ≤ m)
+    (p : Fin r → ℝ[X]) :
+    ∃ φ : ℝ[X] →+ ℝ, (∀ j, φ (p j) = 0) ∧ ∃ i : Fin (m + 1), φ (Polynomial.X ^ (i : ℕ)) ≠ 0 := by
+  let T : (Fin (m + 1) → ℝ) →ₗ[ℝ] (Fin r → ℝ) :=
+    LinearMap.pi fun j => ∑ i : Fin (m + 1), (p j).coeff i • LinearMap.proj i
+  have hn : LinearMap.ker T ≠ ⊥ := by
+    intro he
+    have hd := T.finrank_le_finrank_of_injective (LinearMap.ker_eq_bot.mp he)
+    simp at hd
+    omega
+  obtain ⟨a, ha, hne⟩ := Submodule.exists_mem_ne_zero_of_ne_bot hn
+  let L : ℝ[X] →ₗ[ℝ] ℝ := ∑ i : Fin (m + 1), a i • Polynomial.lcoeff ℝ i
+  refine ⟨L.toAddMonoidHom, ?_, ?_⟩
+  · intro j
+    simpa [L, T, mul_comm] using congrFun (LinearMap.mem_ker.mp ha) j
+  · obtain ⟨i, hi⟩ := Function.ne_iff.mp hne
+    refine ⟨i, ?_⟩
+    simpa [L, Polynomial.coeff_X_pow, ← Fin.ext_iff] using hi
+
 /-- For a fixed bundle combination, the nonnegative parameters `0,…,m`
 recover every mixed coefficient of the degree-`m` pencil. -/
 theorem polarisation_mixed_terms_on_pencil (A : Type) [CommRing A] (θ : A →+ ℝ)
