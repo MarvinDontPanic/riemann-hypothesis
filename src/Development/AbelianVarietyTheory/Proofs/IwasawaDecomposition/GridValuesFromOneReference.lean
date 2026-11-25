@@ -15,7 +15,7 @@ namespace GridInterpolation
 /-- Union of the possible ramified places as the auxiliary place varies. -/
 def allBad (D : D7) : Set (HeightOneSpectrum (𝓞 D.host.E)) := ⋃ v ∈ Q0 D, Sv D v
 
-private theorem allBad_finite (D : D7) : (allBad D).Finite := by
+theorem allBad_finite (D : D7) : (allBad D).Finite := by
   have hQ0 : (Q0 D).Finite := by
     refine (Formalism.L2.DIV.primesOf ((q0 D : ℕ) : 𝓞 D.host.F)).finite_toSet.subset fun v hv => ?_
     exact Formalism.L2.DIV.mem_primesOf.2 ⟨Nat.cast_ne_zero.2 (GlobalTheory.ChiGrid.leastSplitAuxiliaryPrimeThetaChain_spec D).1.ne_zero, hv⟩
@@ -55,25 +55,31 @@ private theorem level_global {D : D7} {v : HeightOneSpectrum (𝓞 D.host.F)} {c
   · exact hs.2.2 p hp
   · exact fun z hz _ => hs.2.1 p hp z hz
 
+/-- Same-index grid ratios factor through the common moving ray quotient. -/
+theorem movingRayGroup_le_ratio_ker {D : D7} {v u : HeightOneSpectrum (𝓞 D.host.F)} (hv : v ∈ Q0 D) (hu : u ∈ Q0 D)
+    {c : ℝ} {a : Fin D.R.m} {χ ψ : HChar D.host.E} (hχ : χ ∈ CS D c v a) (hψ : ψ ∈ CS D c u a) :
+    movingRayGroup D ≤ (χ * ψ⁻¹).1.ker := by
+  let r := χ * ψ⁻¹
+  refine sup_le ?_ fun y hy => MonoidHom.mem_ker.2
+    (GlobalTheory.T.heckeChar_trivial_on_congruenceUnitIdeles D.host.E (allBad D) 2 r
+      (fun k => ?_) (fun PP hp z hz => ?_) (fun PP _ z hz hl => ?_) y hy)
+  · rintro _ ⟨k, rfl⟩
+    exact MonoidHom.mem_ker.2 (r.2.2 k)
+  · have e : χ.inf k = ψ.inf k := Units.ext ((hχ.1 k).trans (hψ.1 k).symm)
+    change (χ * ψ⁻¹).inf k = 1
+    rw [HChar.inf_mul, HChar.inf_inv, e, mul_inv_cancel]
+  · change χ.loc PP z * (ψ.loc PP z)⁻¹ = 1
+    rw [hχ.2.1 PP (fun h => hp (Set.mem_biUnion hv h)) z hz,
+      hψ.2.1 PP (fun h => hp (Set.mem_biUnion hu h)) z hz, inv_one, one_mul]
+  · change χ.loc PP z * (ψ.loc PP z)⁻¹ = 1
+    rw [level_global hχ PP z hz hl, level_global hψ PP z hz hl, inv_one, one_mul]
+
 theorem moving_ratio_pow {D : D7} {v u : HeightOneSpectrum (𝓞 D.host.F)} (hv : v ∈ Q0 D) (hu : u ∈ Q0 D)
     {c : ℝ} {a : Fin D.R.m} {χ ψ : HChar D.host.E} (hχ : χ ∈ CS D c v a) (hψ : ψ ∈ CS D c u a)
     (p : HeightOneSpectrum (𝓞 D.host.E)) :
     ((χ.val p : ℂ) / (ψ.val p : ℂ)) ^ movingRayExponent D = 1 := by
   let r := χ * ψ⁻¹
-  have hk : movingRayGroup D ≤ r.1.ker := by
-    refine sup_le ?_ fun y hy => MonoidHom.mem_ker.2
-      (GlobalTheory.T.heckeChar_trivial_on_congruenceUnitIdeles D.host.E (allBad D) 2 r
-        (fun k => ?_) (fun PP hp z hz => ?_) (fun PP _ z hz hl => ?_) y hy)
-    · rintro _ ⟨k, rfl⟩
-      exact MonoidHom.mem_ker.2 (r.2.2 k)
-    · have e : χ.inf k = ψ.inf k := Units.ext ((hχ.1 k).trans (hψ.1 k).symm)
-      change (χ * ψ⁻¹).inf k = 1
-      rw [HChar.inf_mul, HChar.inf_inv, e, mul_inv_cancel]
-    · change χ.loc PP z * (ψ.loc PP z)⁻¹ = 1
-      rw [hχ.2.1 PP (fun h => hp (Set.mem_biUnion hv h)) z hz,
-        hψ.2.1 PP (fun h => hp (Set.mem_biUnion hu h)) z hz, inv_one, one_mul]
-    · change χ.loc PP z * (ψ.loc PP z)⁻¹ = 1
-      rw [level_global hχ PP z hz hl, level_global hψ PP z hz hl, inv_one, one_mul]
+  have hk := movingRayGroup_le_ratio_ker hv hu hχ hψ
   let x := localIdele D.host.E p (atFin p (unif p))
   have hx : x ^ movingRayExponent D ∈ movingRayGroup D :=
     (QuotientGroup.eq_one_iff _).mp (Monoid.pow_exponent_eq_one (x : Ideles D.host.E ⧸ movingRayGroup D))
