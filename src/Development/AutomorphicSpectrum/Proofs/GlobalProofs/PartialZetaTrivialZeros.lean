@@ -1,5 +1,6 @@
 module
 
+public import GroundTheory.GlobalFields.TateThesis.DedekindZetaContinuation
 public import Development.AutomorphicSpectrum.Proofs.GlobalProofs.PartialZetaFunctionalEquation
 
 @[expose] public section
@@ -126,25 +127,60 @@ private theorem classGamma_ne_of_re_pos {s : ℂ} (hs : 0 < s.re) : classGamma F
   exact mul_ne_zero (mul_ne_zero two_ne_zero (Complex.cpow_ne_zero_iff.mpr (.inl
     (mul_ne_zero two_ne_zero (Complex.ofReal_ne_zero.mpr Real.pi_ne_zero))))) (Gamma_ne_zero_of_re_pos hs)
 
-/-- On the open left half-plane, normalization is valid even at a pole of the
-archimedean Gamma factor. -/
-theorem zetaOfClass_eq_normalized_of_re_neg (C : ClassGroup (𝓞 F)) {s : ℂ} (hs : s.re < 0) :
+private theorem normPower_classHecke_eq_zero
+    (ψ : AddChar (Additive (ClassGroup (𝓞 F))) ℂ) {τ : ℝ}
+    (hτ : ∀ x : IdeleGroup F, ((classHecke ψ).toIdele x : ℂ) =
+      ((ideleModule F x : ℝ) : ℂ) ^ ((τ : ℂ) * I)) : τ = 0 := by
+  let w : InfinitePlace F := Classical.arbitrary _
+  have hs (t : {x : ℝ // 0 < x}) : (classHecke ψ).toIdele (moduleSection w t) = 1 :=
+    MonoidHom.mem_ker.1 (standardOpenSubgroup_le_ker ψ (moduleSection_mem_standardOpenSubgroup w t))
+  have h0 : archExponent w (classHecke ψ) = 0 :=
+    archExponent_unique w (classHecke ψ) fun t => by simp [hs t]
+  exact (archExponent_eq_of_forall hτ w).symm.trans h0
+
+private theorem classHecke_ne_normPower
+    {ψ : AddChar (Additive (ClassGroup (𝓞 F))) ℂ} (hψ : ψ ≠ 0) :
+    ¬ ∃ τ : ℝ, ∀ x : IdeleGroup F, ((classHecke ψ).toIdele x : ℂ) =
+      ((ideleModule F x : ℝ) : ℂ) ^ ((τ : ℂ) * I) := by
+  rintro ⟨τ, hτ⟩
+  have e := normPower_classHecke_eq_zero ψ hτ
+  subst τ
+  apply hψ
+  ext c
+  obtain ⟨x, hx⟩ := toClassGroup_surjective (Additive.toMul c)
+  have h := hτ x
+  rw [classHecke_toIdele, coe_classCircle, hx] at h
+  simpa using h
+
+private theorem classHecke_zero :
+    classHecke (0 : AddChar (Additive (ClassGroup (𝓞 F))) ℂ) = 1 := by
+  ext x
+  change ((classCircle (0 : AddChar (Additive (ClassGroup (𝓞 F))) ℂ) (IdeleClassGroup.toClassGroup x) : Circle) : ℂ) = 1
+  simp [coe_classCircle]
+
+/-- Away from zero, the ordinary class zeta equals the normalized completed function,
+including at the other poles of the totalized Gamma factor. -/
+theorem zetaOfClass_eq_normalized_of_ne_zero (C : ClassGroup (𝓞 F)) {s : ℂ} (hs : s ≠ 0) :
     zetaOfClass C s = (classGamma F s)⁻¹ * ((dF F : ℂ) ^ (-(s / 2)) * completedZetaOfClass C s) := by
   classical
   rw [zetaOfClass, completedZetaOfClass, Finset.mul_sum, Finset.mul_sum]
   refine Finset.sum_congr rfl fun ψ _ => ?_
   have hU := standardOpenSubgroup_le_ker ψ
   have hL : (classHecke ψ).continuedLFunction s = (classHecke ψ).normalizedLFunction s := by
-    by_cases h : ∃ τ : ℝ, ∀ x : IdeleGroup F, ((classHecke ψ).toIdele x : ℂ) =
-        ((ideleModule F x : ℝ) : ℂ) ^ ((τ : ℂ) * I)
-    · obtain ⟨τ, hτ⟩ := h
-      apply HeckeCharacter.continuedLFunction_of_ne hτ
-      intro e
-      rw [e] at hs
-      simp at hs
-    · rw [HeckeCharacter.continuedLFunction_of_not _ h]
+    by_cases hψ : ψ = 0
+    · subst ψ
+      rw [classHecke_zero (F := F)]
+      exact HeckeCharacter.continuedLFunction_of_ne (HeckeCharacter.one_toIdele_eq_cpow (K := F))
+        (by simpa using hs)
+    · exact congrFun (HeckeCharacter.continuedLFunction_of_not _ (classHecke_ne_normPower hψ)) s
   rw [hL, HeckeCharacter.normalizedLFunction, classGamma_eq _ hU, discrNormConductor_eq_dF_of_unramified F _ hU]
   ring
+
+/-- On the open left half-plane, normalization is valid even at a pole of the
+archimedean Gamma factor. -/
+theorem zetaOfClass_eq_normalized_of_re_neg (C : ClassGroup (𝓞 F)) {s : ℂ} (hs : s.re < 0) :
+    zetaOfClass C s = (classGamma F s)⁻¹ * ((dF F : ℂ) ^ (-(s / 2)) * completedZetaOfClass C s) :=
+  zetaOfClass_eq_normalized_of_ne_zero C (fun e => by simp [e] at hs)
 
 private theorem completedZetaOfClass_ne_of_real_neg (C : ClassGroup (𝓞 F)) (x : ℝ) (hx : x < 0) :
     completedZetaOfClass C (x : ℂ) ≠ 0 := by
@@ -190,5 +226,129 @@ theorem isPartialZeta_order_neg_nat {C : ClassGroup (𝓞 F)} {Z : ℂ → ℂ}
     have ho : IsOpen {t : ℂ | t.re < 0} := isOpen_lt Complex.continuous_re continuous_const
     filter_upwards [ho.mem_nhds hs] with t ht
     exact zetaOfClass_eq_normalized_of_re_neg C ht
+
+/-- Removing the trivial character leaves an entire completed class zeta function. -/
+theorem completedZetaOfClass_eq_dedekind_add_entire (C : ClassGroup (𝓞 F)) :
+    ∃ E : ℂ → ℂ, Differentiable ℂ E ∧ ∀ s : ℂ,
+      completedZetaOfClass C s = (Fintype.card (ClassGroup (𝓞 F)) : ℂ)⁻¹ *
+        completedDedekindZeta F s + E s := by
+  classical
+  let term (ψ : AddChar (Additive (ClassGroup (𝓞 F))) ℂ) (s : ℂ) :=
+    ((Fintype.card (ClassGroup (𝓞 F)) : ℂ)⁻¹ * ψ (Additive.ofMul C⁻¹)) *
+      (classHecke ψ).completedLFunction s
+  refine ⟨fun s => ∑ ψ ∈ Finset.univ.erase 0, term ψ s, ?_, fun s => ?_⟩
+  · refine Differentiable.fun_sum fun ψ hψ => ?_
+    exact ((classHecke ψ).differentiable_completedLFunction
+      (classHecke_ne_normPower (Finset.ne_of_mem_erase hψ))).const_mul _
+  · have h := (Finset.sum_erase_add Finset.univ (fun ψ => term ψ s) (Finset.mem_univ 0)).symm
+    unfold completedZetaOfClass
+    rw [show (∑ ψ, _) = ∑ ψ, term ψ s from rfl, h, add_comm]
+    simp [term, classHecke_zero, completedDedekindZeta]
+
+/-- For every class, the completed residue at zero is the completed Dedekind residue
+divided by the class number. In particular this residue cannot vanish. -/
+theorem tendsto_mul_completedZetaOfClass_zero (C : ClassGroup (𝓞 F)) :
+    Tendsto (fun s ↦ s * completedZetaOfClass C s) (𝓝[≠] 0)
+      (𝓝 ((Fintype.card (ClassGroup (𝓞 F)) : ℂ)⁻¹ *
+        -(((normOneClassMeasure F Set.univ).toReal : ℂ) * ((Real.pi : ℂ) ^ nrComplexPlaces F)⁻¹))) := by
+  obtain ⟨E, hE, h⟩ := completedZetaOfClass_eq_dedekind_add_entire C
+  have hE' : Tendsto (fun s : ℂ => s * E s) (𝓝[≠] 0) (𝓝 0) := by
+    have h0 : Tendsto (fun s : ℂ => s) (𝓝[≠] 0) (𝓝 0) := tendsto_id.mono_left nhdsWithin_le_nhds
+    simpa only [zero_mul] using h0.mul
+      ((hE.continuous.continuousAt.tendsto (x := (0 : ℂ))).mono_left nhdsWithin_le_nhds)
+  have hh := ((tendsto_const_nhds (x := (Fintype.card (ClassGroup (𝓞 F)) : ℂ)⁻¹)).mul (tendsto_mul_completedDedekindZeta_zero_volume F)).add hE'
+  rw [add_zero] at hh
+  refine hh.congr fun s => ?_
+  rw [h s]
+  ring
+
+
+/-- Every ordinary ideal class has the same nonzero residue at one: the Dedekind
+residue divided by the class number. -/
+theorem tendsto_sub_one_mul_isPartialZeta {C : ClassGroup (𝓞 F)} {Z : ℂ → ℂ}
+    (hZ : IsPartialZeta C Z) :
+    Tendsto (fun s ↦ (s - 1) * Z s) (𝓝[≠] 1)
+      (𝓝 ((Fintype.card (ClassGroup (𝓞 F)) : ℂ)⁻¹ * (dedekindZeta_residue F : ℂ))) := by
+  obtain ⟨E, hE, h⟩ := completedZetaOfClass_eq_dedekind_add_entire C
+  let G := fun s : ℂ => (dF F : ℂ) ^ (-(s / 2)) * (classGamma F s)⁻¹ * E s
+  have hG : Differentiable ℂ G :=
+    (differentiable_discr_cpow_mul_gamma_inv F).mul hE
+  have h0 : Tendsto (fun s : ℂ => s - 1) (𝓝[≠] 1) (𝓝 0) := by
+    have hc : Continuous (fun s : ℂ => s - 1) := by fun_prop
+    simpa only [sub_self] using (hc.continuousAt (x := (1 : ℂ))).tendsto.mono_left nhdsWithin_le_nhds
+  have hG' : Tendsto (fun s : ℂ => (s - 1) * G s) (𝓝[≠] 1) (𝓝 0) := by
+    simpa only [zero_mul] using h0.mul
+      ((hG.continuous.continuousAt.tendsto (x := (1 : ℂ))).mono_left nhdsWithin_le_nhds)
+  have hh := ((tendsto_const_nhds (x := (Fintype.card (ClassGroup (𝓞 F)) : ℂ)⁻¹)).mul
+    (tendsto_sub_one_mul_continuedDedekindZeta F)).add hG'
+  rw [add_zero] at hh
+  refine hh.congr' ?_
+  filter_upwards [self_mem_nhdsWithin, eventually_nhdsWithin_of_eventually_nhds
+    (isOpen_compl_singleton.mem_nhds (one_ne_zero (α := ℂ)))] with s hs1 hs0
+  have h1 : s ≠ 1 := hs1
+  have hs_ne_zero : s ≠ 0 := hs0
+  rw [isPartialZeta_eqOn hZ (isPartialZeta_zetaOfClass C) h1,
+    zetaOfClass_eq_normalized_of_ne_zero C hs_ne_zero, h s,
+    continuedDedekindZeta_of_ne_zero F hs_ne_zero]
+  unfold normalizedDedekindZeta
+  change (Fintype.card (ClassGroup (𝓞 F)) : ℂ)⁻¹ *
+      ((s - 1) * ((dF F : ℂ) ^ (-(s / 2)) * (classGamma F s)⁻¹ * completedDedekindZeta F s)) +
+      (s - 1) * G s = _
+  dsimp [G]
+  ring
+
+/-- The uncompleted ideal-class zeta has exact order r₁ + r₂ − 1 at zero.
+Unlike at negative integers, one Gamma zero cancels the pole of the completed zeta. -/
+theorem isPartialZeta_order_zero {C : ClassGroup (𝓞 F)} {Z : ℂ → ℂ}
+    (hZ : IsPartialZeta C Z) :
+    analyticOrderAt Z 0 = ((nrRealPlaces F + nrComplexPlaces F - 1 : ℕ) : ℕ∞) := by
+  let R : ℂ := (Fintype.card (ClassGroup (𝓞 F)) : ℂ)⁻¹ *
+    -(((normOneClassMeasure F Set.univ).toReal : ℂ) * ((Real.pi : ℂ) ^ nrComplexPlaces F)⁻¹)
+  let P : ℂ → ℂ := Function.update (fun s ↦ s * completedZetaOfClass C s) 0 R
+  have hR : R ≠ 0 := mul_ne_zero (inv_ne_zero card_classGroup_ne_zero)
+    (neg_ne_zero.mpr (mul_ne_zero (Complex.ofReal_ne_zero.mpr (normOneClassMeasure_univ_toReal_ne_zero F))
+      (inv_ne_zero (pow_ne_zero _ (Complex.ofReal_ne_zero.mpr Real.pi_ne_zero)))))
+  have hPon : DifferentiableOn ℂ P ({1}ᶜ : Set ℂ) := by
+    refine (Complex.differentiableOn_compl_singleton_and_continuousAt_iff
+      (isOpen_compl_singleton.mem_nhds (zero_ne_one (α := ℂ)))).mp ⟨?_, ?_⟩
+    · refine DifferentiableOn.congr (fun s hs => ?_) fun s hs =>
+        Function.update_of_ne hs.2 _ _
+      exact ((differentiableAt_id (x := s)).mul
+        (analyticAt_completedZetaOfClass C hs.2 hs.1).differentiableAt).differentiableWithinAt
+    · change ContinuousAt (Function.update (fun s ↦ s * completedZetaOfClass C s) 0 R) 0
+      rw [continuousAt_update_same]
+      exact tendsto_mul_completedZetaOfClass_zero C
+  have hP : AnalyticAt ℂ P 0 :=
+    hPon.analyticAt (isOpen_compl_singleton.mem_nhds (zero_ne_one (α := ℂ)))
+  let G := fun s : ℂ => (dF F : ℂ) ^ (-(s / 2)) * P s
+  have hD : Differentiable ℂ (fun t : ℂ => (dF F : ℂ) ^ (-(t / 2))) :=
+    fun _ => DifferentiableAt.const_cpow (by fun_prop) (Or.inl (classDiscriminant_ne_zero F))
+  have hG : AnalyticAt ℂ G 0 := (hD.analyticAt _).mul hP
+  have hGn : G 0 ≠ 0 := by simpa [G, P] using hR
+  have horder := orderAt_signature_quotient_eq (nrRealPlaces F) (nrComplexPlaces F) 0
+    G (id * Z) (by simpa using hG) (by simpa using hGn) ?_
+  · have hZa : AnalyticAt ℂ Z 0 :=
+      hZ.1.analyticAt (isOpen_compl_singleton.mem_nhds (zero_ne_one (α := ℂ)))
+    have he : 1 + analyticOrderAt Z 0 = (nrRealPlaces F : ℕ∞) + nrComplexPlaces F := by
+      simpa [analyticOrderAt_mul analyticAt_id hZa] using horder
+    apply ENat.add_right_injective_of_ne_top (by simp : (1 : ℕ∞) ≠ ⊤)
+    change 1 + analyticOrderAt Z 0 = 1 + ((nrRealPlaces F + nrComplexPlaces F - 1 : ℕ) : ℕ∞)
+    rw [he, ← ENat.natCast_add, ← ENat.natCast_one, ← ENat.natCast_add]
+    have hn : 0 < nrRealPlaces F + nrComplexPlaces F := by
+      rw [← card_eq_nrRealPlaces_add_nrComplexPlaces]
+      exact Fintype.card_pos
+    exact congrArg (fun n : ℕ => (n : ℕ∞)) (by omega)
+  · simp only [Nat.cast_zero, neg_zero]
+    refine Filter.EventuallyEq.trans (g := id * zetaOfClass C) ?_ (.of_forall fun s => ?_)
+    · filter_upwards [isOpen_compl_singleton.mem_nhds (zero_ne_one (α := ℂ))] with s hs
+      simp only [Pi.mul_apply, isPartialZeta_eqOn hZ (isPartialZeta_zetaOfClass C) hs]
+    · change s * zetaOfClass C s = (classGamma F s)⁻¹ * G s
+      by_cases hs : s = 0
+      · subst s
+        simp [classGamma_zero]
+      · rw [zetaOfClass_eq_normalized_of_ne_zero C hs]
+        dsimp [G, P]
+        rw [Function.update_of_ne hs]
+        ring
 
 end GlobalTheory.CompanionTheory.Hypotheses₂
