@@ -457,6 +457,49 @@ theorem exists_minimal_class_image {G : Type*} [Group G] (f : ClassGroup (𝓞 K
   rw [Ideal.one_eq_top]
   exact Ideal.absNorm_eq_one_iff.mp (Nat.le_antisymm hle (Ideal.absNorm_pos_of_nonZeroDivisors J))
 
+section
+
+variable {K} {G : Type*} [Group G]
+
+/-- The kernel-reduced norm fibre in the quotient Minkowski bound. -/
+def kernelReducedFibre (f : ClassGroup (𝓞 K) →* G) (n : ℕ) : Set (Ideal (𝓞 K)) :=
+  {I | I.absNorm = n ∧ ∀ J : (Ideal (𝓞 K))⁰, f (ClassGroup.mk0 J) = 1 →
+    (J : Ideal (𝓞 K)) ∣ I → (J : Ideal (𝓞 K)) = 1}
+
+/-- Distinct classes represented by the *kernel-reduced* ideals at one norm. -/
+noncomputable def reducedClassImages (f : ClassGroup (𝓞 K) →* G) (n : ℕ) : Set G :=
+  (fun I : (Ideal (𝓞 K))⁰ => f (ClassGroup.mk0 I)) '' (Subtype.val ⁻¹' kernelReducedFibre f n)
+
+/-- Kernel-reduced ideals of bounded norm cover exactly the image of the quotient
+map, without assuming a finite codomain or surjectivity. -/
+theorem range_eq_biUnion_reducedClassImages (f : ClassGroup (𝓞 K) →* G) :
+    Set.range f = ⋃ n ∈ Ioc 0 ⌊minkowskiBound K⌋₊, reducedClassImages f n := by
+  ext a
+  simp only [Set.mem_range, Set.mem_iUnion, reducedClassImages, Set.mem_image, Set.mem_preimage]
+  constructor
+  · rintro ⟨C, rfl⟩
+    obtain ⟨I, hclass, hM, hfree⟩ := exists_minimal_class_image K f C
+    exact ⟨_, mem_Ioc.mpr ⟨Ideal.absNorm_pos_of_nonZeroDivisors I, Nat.le_floor hM⟩,
+      I, ⟨rfl, hfree⟩, hclass⟩
+  · rintro ⟨n, _, I, _, rfl⟩
+    exact ⟨ClassGroup.mk0 I, rfl⟩
+
+theorem ncard_reducedClassImages_le_reduced (f : ClassGroup (𝓞 K) →* G) (n : ℕ) :
+    (reducedClassImages f n).ncard ≤ (kernelReducedFibre f n).ncard := by
+  have ht : (kernelReducedFibre f n).Finite := (Ring.HasFiniteQuotients.finite_absNorm_eq n).subset fun _ h => h.1
+  have hs : (Subtype.val ⁻¹' kernelReducedFibre f n : Set (Ideal (𝓞 K))⁰).Finite :=
+    ht.preimage Subtype.val_injective.injOn
+  exact (Set.ncard_image_le hs).trans (Set.ncard_le_ncard_of_injOn Subtype.val (fun _ h => h) Subtype.val_injective.injOn ht)
+
+/-- Count distinct represented classes, not representatives, before summing over norms. -/
+theorem card_le_sum_reducedClassImages [Fintype G] (f : ClassGroup (𝓞 K) →* G) (hf : Function.Surjective f) :
+    Fintype.card G ≤ ∑ n ∈ Ioc 0 ⌊minkowskiBound K⌋₊, (reducedClassImages f n).ncard := by
+  have h := (Ioc 0 ⌊minkowskiBound K⌋₊).set_ncard_biUnion_le (reducedClassImages f)
+  rwa [← range_eq_biUnion_reducedClassImages, Set.range_eq_univ.mpr hf,
+    Set.ncard_univ, Nat.card_eq_fintype_card] at h
+
+end
+
 /-- The size of any quotient of the class group is bounded by the number of
 small ideals left after excluding all proper divisors killed by that quotient. -/
 theorem card_class_image_le_reduced_minkowski {G : Type*} [Group G] [Fintype G]
@@ -464,22 +507,8 @@ theorem card_class_image_le_reduced_minkowski {G : Type*} [Group G] [Fintype G]
     Fintype.card G ≤ ∑ n ∈ Ioc 0 ⌊minkowskiBound K⌋₊,
       {I : Ideal (𝓞 K) | Ideal.absNorm I = n ∧
         ∀ J : (Ideal (𝓞 K))⁰, f (ClassGroup.mk0 J) = 1 → (J : Ideal (𝓞 K)) ∣ I →
-          (J : Ideal (𝓞 K)) = 1}.ncard := by
-  classical
-  choose c hc using hf
-  choose g hg hN hfree using fun a => exists_minimal_class_image K f (c a)
-  have hinj : Function.Injective fun a => (g a : Ideal (𝓞 K)) := by
-    intro a b h
-    rw [← hc a, ← hc b, ← hg a, ← hg b, Subtype.ext h]
-  rw [← card_univ, card_eq_sum_card_fiberwise (f := fun a => Ideal.absNorm (g a : Ideal (𝓞 K)))
-    (t := Ioc 0 ⌊minkowskiBound K⌋₊)]
-  · refine sum_le_sum fun n _ => ?_
-    rw [← Set.ncard_coe_finset]
-    exact Set.ncard_le_ncard_of_injOn (fun a => (g a : Ideal (𝓞 K)))
-      (fun a ha => ⟨by simpa using ha, hfree a⟩) hinj.injOn
-      ((Ring.HasFiniteQuotients.finite_absNorm_eq n).subset fun _ h => h.1)
-  · intro a _
-    exact mem_Ioc.mpr ⟨Ideal.absNorm_pos_of_nonZeroDivisors _, Nat.le_floor (hN a)⟩
+          (J : Ideal (𝓞 K)) = 1}.ncard :=
+  (card_le_sum_reducedClassImages f hf).trans (sum_le_sum fun n _ => ncard_reducedClassImages_le_reduced f n)
 
 /-- In particular every class can be counted using only ideals with no
 rational scalar prime divisor. The finite sieve is exact at each norm. -/
