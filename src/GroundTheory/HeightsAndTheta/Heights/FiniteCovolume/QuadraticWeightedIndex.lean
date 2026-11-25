@@ -3,7 +3,7 @@ public import Mathlib.Algebra.QuadraticAlgebra.IsQuadraticExtension
 public import Mathlib.RingTheory.QuadraticAlgebra
 public import Mathlib.NumberTheory.NumberField.Discriminant.Basic
 public import Mathlib.NumberTheory.NumberField.InfinitePlace.TotallyRealComplex
-public import GroundTheory.HeightsAndTheta.Heights.FiniteCovolume.QuadraticIndex
+public import GroundTheory.HeightsAndTheta.Heights.FiniteCovolume.QuadraticStableIndex
 
 @[expose] public section
 
@@ -119,24 +119,19 @@ theorem weighted_minimum_iff_single_embedding (K : Type*) [Field K] [NumberField
     simpa only [mul_one] using (mul_le_mul_iff_right₀ hc : c w * 1 ≤ c w * x ↔ 1 ≤ x)
   simp only [hsum, cancel, one_le_sq_iff₀ (norm_nonneg _)]
 
-/-- Finite-index additive enlargements of an embedded field subgroup have no new ambient
-coordinates: multiplying by their index puts every element back in the field. -/
-private theorem embedded_overgroups {E : Type*} [Field E] (e : E →+* ℂ) (O : AddSubgroup E)
-    {n : ℕ} (hn : 0 < n) :
-    (∃ A : AddSubgroup E, O ≤ A ∧ O.relIndex A = n ∧
-      ∀ x ∈ A, x ≠ 0 → 1 ≤ ‖e x‖) ↔
+/-- A finite-index extension of an additive subgroup of a field transports predicates on
+its complex image without changing the ambient field of any generator. -/
+private theorem finite_index_subgroups_image {E : Type*} [Field E] (e : E →+* ℂ) (O : AddSubgroup E)
+    {n : ℕ} (hn : 0 < n) (P : AddSubgroup ℂ → Prop) :
+    (∃ A : AddSubgroup E, O ≤ A ∧ O.relIndex A = n ∧ P (A.map e.toAddMonoidHom)) ↔
     (∃ L : AddSubgroup ℂ, O.map e.toAddMonoidHom ≤ L ∧
-      (O.map e.toAddMonoidHom).relIndex L = n ∧ ∀ z ∈ L, z ≠ 0 → 1 ≤ ‖z‖) := by
+      (O.map e.toAddMonoidHom).relIndex L = n ∧ P L) := by
   let f := e.toAddMonoidHom
   constructor
-  · rintro ⟨A, hOA, hi, hs⟩
-    refine ⟨A.map f, AddSubgroup.map_mono hOA, ?_, ?_⟩
-    · rwa [AddSubgroup.relIndex_map_map_of_injective _ _ e.injective]
-    · rintro _ ⟨x, hx, rfl⟩ h
-      apply hs x hx
-      rintro rfl
-      exact h f.map_zero
-  · rintro ⟨L, hOL, hi, hs⟩
+  · rintro ⟨A, hOA, hi, hA⟩
+    exact ⟨A.map f, AddSubgroup.map_mono hOA,
+      (AddSubgroup.relIndex_map_map_of_injective O A (show Function.Injective f from e.injective)).trans hi, hA⟩
+  · rintro ⟨L, hOL, hi, hL⟩
     have himage : L ≤ f.range := by
       intro z hz
       let B := (O.map f).addSubgroupOf L
@@ -150,10 +145,29 @@ private theorem embedded_overgroups {E : Type*} [Field E] (e : E →+* ℂ) (O :
       rw [map_div₀, map_natCast, show e a = (n : ℂ) * z by simpa [nsmul_eq_mul] using he]
       exact mul_div_cancel_left₀ _ (Nat.cast_ne_zero.mpr hn.ne')
     have hm : (L.comap f).map f = L := AddSubgroup.map_comap_eq_self himage
-    refine ⟨L.comap f, AddSubgroup.map_le_iff_le_comap.mp hOL, ?_, fun x hx hx0 => ?_⟩
+    refine ⟨L.comap f, AddSubgroup.map_le_iff_le_comap.mp hOL, ?_, ?_⟩
     · rw [← AddSubgroup.relIndex_map_map_of_injective O (L.comap f) (show Function.Injective f from e.injective)]
       rwa [hm]
-    · exact hs (e x) hx ((map_ne_zero e).mpr hx0)
+    · exact (congrArg P hm).symm ▸ hL
+
+private theorem image_shortest_iff {E : Type*} [Field E] (e : E →+* ℂ) (A : AddSubgroup E) :
+    (∀ z ∈ A.map e.toAddMonoidHom, z ≠ 0 → 1 ≤ ‖z‖) ↔
+    ∀ x ∈ A, x ≠ 0 → 1 ≤ ‖e x‖ := by
+  constructor
+  · intro h x hx h0
+    exact h (e x) ⟨x, hx, rfl⟩ ((map_ne_zero e).mpr h0)
+  · rintro h _ ⟨x, hx, rfl⟩ h0
+    exact h x hx (fun he => h0 (by simp [he]))
+
+private theorem image_stable_iff {E : Type*} [Field E] (e : E →+* ℂ) (O A : AddSubgroup E) :
+    (∀ u ∈ O.map e.toAddMonoidHom, ∀ z ∈ A.map e.toAddMonoidHom, u * z ∈ A.map e.toAddMonoidHom) ↔
+    ∀ a ∈ O, ∀ x ∈ A, a * x ∈ A := by
+  constructor
+  · intro h a ha x hx
+    obtain ⟨y, hy, he⟩ := h (e a) ⟨a, ha, rfl⟩ (e x) ⟨x, hx, rfl⟩
+    exact (e.injective (he.trans (e.map_mul a x).symm)) ▸ hy
+  · rintro h _ ⟨a, ha, rfl⟩ _ ⟨x, hx, rfl⟩
+    exact ⟨a * x, h a ha x hx, e.map_mul _ _⟩
 
 /-- For an imaginary quadratic field the admissible indices are an initial interval determined
 by its discriminant alone. The minimum is exactly the weighted condition used by Core 26. -/
@@ -185,9 +199,45 @@ theorem imaginary_quadratic_weighted_index_spectrum (K : Type*) [Field K] [Numbe
   · rintro ⟨A, hOA, hidx, hs⟩
     refine hl.mp ⟨A.map e.toAddMonoidHom, AddSubgroup.map_mono hOA, ?_, ?_⟩
     · rwa [AddSubgroup.relIndex_map_map_of_injective _ _ e.injective]
-    · rintro _ ⟨x, hx, rfl⟩ h
-      exact hs x hx (fun he => h (by simp [he]))
+    · exact (image_shortest_iff e A).mpr hs
   · intro h
-    exact (embedded_overgroups e O h.1).mpr (hl.mpr h)
+    have ht := finite_index_subgroups_image e O h.1 (fun L => ∀ z ∈ L, z ≠ 0 → 1 ≤ ‖z‖)
+    simp_rw [image_shortest_iff] at ht
+    exact ht.mpr (hl.mpr h)
+
+/-- The possible indices of integer-stable overgroups in which 1 is shortest,
+computed from the field discriminant by the reduced integral quadratic form criterion. -/
+theorem imaginary_quadratic_stable_index_spectrum (K : Type*) [Field K] [NumberField K]
+    [IsTotallyComplex K] (hK : finrank ℚ K = 2) (c : InfinitePlace K → ℝ)
+    (hc : ∀ v, 0 < c v) (n : ℕ) :
+    let O := (algebraMap (𝓞 K) K).toAddMonoidHom.range
+    (∃ A : AddSubgroup K, O ≤ A ∧ O.relIndex A = n ∧
+      (∀ x ∈ A, x ≠ 0 → ∑ v, c v ≤ ∑ v, c v * ‖v.embedding x‖^2) ∧
+      (∀ a ∈ O, ∀ x ∈ A, a * x ∈ A)) ↔
+      n ∈ StableQuadraticIndex.indices (NumberField.discr K).natAbs := by
+  classical
+  let O := (algebraMap (𝓞 K) K).toAddMonoidHom.range
+  let d := (NumberField.discr K).natAbs
+  let v : InfinitePlace K := Classical.arbitrary _
+  let e := v.embedding
+  obtain ⟨w,t,q,hr,hi,_,hw,hdq,hO⟩ := integral_period_of_imaginary_quadratic K hK e
+  have hd : 0 < d := Int.natAbs_pos.mpr (NumberField.discr_ne_zero K)
+  have hdi : (d : ℤ) = |NumberField.discr K| := Int.natCast_natAbs _
+  have him : (2 * w.im)^2 = ((d : ℤ) : ℝ) := by simpa [hdi] using hi
+  have hp : (d : ℤ) = 4 * q - t^2 := hdi.trans hdq
+  change O.map e.toAddMonoidHom = quadraticSpan w at hO
+  by_cases hn : 0 < n
+  · have geom := exists_stable_overgroup_index_iff hn (by exact_mod_cast hd) hr him hw hp
+    have htransport := finite_index_subgroups_image e O hn
+      (fun L => (∀ z ∈ L, z ≠ 0 → 1 ≤ ‖z‖) ∧ ∀ u ∈ O.map e.toAddMonoidHom, ∀ z ∈ L, u*z ∈ L)
+    simp_rw [image_shortest_iff, image_stable_iff, hO, quadraticSpan_order_stable_iff] at htransport
+    simp_rw [weighted_minimum_iff_single_embedding K hK v c (hc v)]
+    exact htransport.trans (geom.trans (StableQuadraticIndex.criterion_iff_mem hn hp))
+  · constructor
+    · rintro ⟨A, hOA, hidx, hmin, _⟩
+      have h := (imaginary_quadratic_weighted_index_spectrum K hK c hc n).mp ⟨A, hOA, hidx, hmin⟩
+      exact False.elim (hn h.1)
+    · intro hx
+      exact False.elim (hn (StableQuadraticIndex.mem_indices.mp hx).1)
 
 end GroundTheory.Heights₂.Heights.FiniteCovolume
