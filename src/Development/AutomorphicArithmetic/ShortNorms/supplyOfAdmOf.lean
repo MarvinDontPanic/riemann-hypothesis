@@ -18,16 +18,19 @@ namespace UpperTheory.Top
 
 /-- At every admissible epsilon, the supplied window depths cover the actual host ranks
 after rescaling by the order of the character field. -/
-def RankWindowsAt (ψ : PChar) (δ : ℝ) : Prop :=
-  ∃ cut : ℝ → ℝ → ℝ, JointVWinBelow ψ δ cut ∧ ∀ eps : ℝ, 0 < eps → eps < 1 / 52 → eps < δ →
+def RankWindowsAtWidth (ψ : PChar) (δ w : ℝ) : Prop :=
+  ∃ cut : ℝ → ℝ → ℝ, JointVWinBelowWidth ψ δ w cut ∧ ∀ eps : ℝ, 0 < eps → eps < 1 / 52 → eps < δ →
     ∀ k : ℝ, 1 ≤ k → k ^ (2 + 8 * eps) ≤ Nat.card (Subgroup.zpowers ψ.χ) →
       ∃ M : ℝ, ∀ x ≥ M, 10708 * (k * x) ^ rankExponent eps ≤ cut eps x
 
+/-- The square-window specialization. -/
+def RankWindowsAt (ψ : PChar) (δ : ℝ) : Prop := RankWindowsAtWidth ψ δ 2
+
 /-- An arbitrarily small positive multiplier suffices above the fixed-epsilon exponent. -/
-theorem RankWindowsAt.of_power {ψ : PChar} {δ : ℝ} {C b : ℝ → ℝ}
-    (hV : JointVWinBelow ψ δ (fun eps x => C eps * x ^ b eps))
+theorem RankWindowsAtWidth.of_power {ψ : PChar} {δ w : ℝ} {C b : ℝ → ℝ}
+    (hV : JointVWinBelowWidth ψ δ w (fun eps x => C eps * x ^ b eps))
     (h : ∀ eps : ℝ, 0 < eps → eps < 1 / 52 → eps < δ → 0 < C eps ∧ rankExponent eps < b eps) :
-    RankWindowsAt ψ δ := by
+    RankWindowsAtWidth ψ δ w := by
   refine ⟨_, hV, fun eps he he' hsmall k hk _ => ?_⟩
   obtain ⟨hC, hb⟩ := h eps he he' hsmall
   have hk₀ : 0 ≤ k := zero_le_one.trans hk
@@ -47,6 +50,12 @@ theorem RankWindowsAt.of_power {ψ : PChar} {δ : ℝ} {C b : ℝ → ℝ}
         mul_le_mul_of_nonneg_right hscale (Real.rpow_nonneg hx₀.le _)
     _ = C eps * x ^ b eps := by
       rw [mul_comm _ (C eps), mul_assoc, ← Real.rpow_add hx₀, sub_add_cancel]
+
+theorem RankWindowsAt.of_power {ψ : PChar} {δ : ℝ} {C b : ℝ → ℝ}
+    (hV : JointVWinBelow ψ δ (fun eps x => C eps * x ^ b eps))
+    (h : ∀ eps : ℝ, 0 < eps → eps < 1 / 52 → eps < δ → 0 < C eps ∧ rankExponent eps < b eps) :
+    RankWindowsAt ψ δ :=
+  RankWindowsAtWidth.of_power hV h
 
 /-- The host bound for all of the construction's admissible epsilons. -/
 abbrev RankWindows (ψ : PChar) : Prop := RankWindowsAt ψ (1 / 52)
@@ -88,32 +97,46 @@ theorem CofinalVWinAt.rankWindows {ψ : PChar} (hV : CofinalVWinAt ψ 401) : Ran
       linarith
 
 /-- Any fixed power above the limit as epsilon tends to zero suffices. -/
-theorem RankWindowsAt.of_limiting_power {ψ : PChar} {δ b : ℝ} {C : ℝ → ℝ}
+theorem RankWindowsAtWidth.of_limiting_power {ψ : PChar} {δ b w : ℝ} {C : ℝ → ℝ}
     (hδ : 0 < δ) (hb : 797 / 2 < b)
-    (hV : JointVWinBelow ψ δ (fun eps x => C eps * x ^ b))
+    (hV : JointVWinBelowWidth ψ δ w (fun eps x => C eps * x ^ b))
     (hC : ∀ eps : ℝ, 0 < eps → eps < δ → 0 < C eps) :
-    ∃ η > 0, RankWindowsAt ψ η := by
+    ∃ η > 0, RankWindowsAtWidth ψ η w := by
   let η := min δ ((b - 797 / 2) / (929 / 16))
   have hη : 0 < η := lt_min hδ (div_pos (sub_pos.mpr hb) (by norm_num))
-  refine ⟨η, hη, RankWindowsAt.of_power (hV.mono (min_le_left _ _)) ?_⟩
+  refine ⟨η, hη, RankWindowsAtWidth.of_power
+    (fun e he he' hh => hV e he he' (hh.trans_le (min_le_left _ _))) ?_⟩
   intro eps he _ hsmall
   have hlim := (lt_div_iff₀ (by norm_num : (0 : ℝ) < 929 / 16)).mp
     (hsmall.trans_le (min_le_right _ _))
   exact ⟨hC eps he (hsmall.trans_le (min_le_left _ _)), by unfold rankExponent; linarith⟩
 
+theorem RankWindowsAt.of_limiting_power {ψ : PChar} {δ b : ℝ} {C : ℝ → ℝ}
+    (hδ : 0 < δ) (hb : 797 / 2 < b)
+    (hV : JointVWinBelow ψ δ (fun eps x => C eps * x ^ b))
+    (hC : ∀ eps : ℝ, 0 < eps → eps < δ → 0 < C eps) :
+    ∃ η > 0, RankWindowsAt ψ η :=
+  RankWindowsAtWidth.of_limiting_power hδ hb hV hC
+
 end UpperTheory.Top
 
-theorem UpperTheory.T3.supplyOfAdmOfRankWindowsAt {δ : ℝ} :
-    (∀ eps C0 : ℝ, 0 < eps → eps < 1 / 52 → 1 ≤ C0 → ∃ CT2 C8 c6 Cb x0 : ℝ, C0 ≤ C8 ∧ 0 < c6 ∧ 0 < Cb ∧
+local macro "HostSupply" : term =>
+  `((∀ eps C0 : ℝ, 0 < eps → eps < 1 / 52 → 1 ≤ C0 → ∃ CT2 C8 c6 Cb x0 : ℝ, C0 ≤ C8 ∧ 0 < c6 ∧ 0 < Cb ∧
       ∀ (s : Scale) (R : Ranks) (H0 : HostAx R.toFrame) (M : ℕ) (Y : ℝ), s.eps = eps → x0 ≤ s.x → RankVal s R →
         s.J ≤ C0 → (R.o : ℝ) ≤ C0 → (H0.QS : ℝ) ≤ C0 * R.n → 0 < M → (M : ℝ) ≤ C0 → H0.QS ∣ Nat.lcm (2 ^ (R.e + 2)) M →
         PairWin s Y → PairGood M eps Y s.x H0.q H0.d → FieldRows H0.toHostRaw ⌊Y ^ (eps / 5)⌋₊ → admitted R H0 →
         ∃ (H : Host R) (q0 : ℕ), H.toHostAx = H0 ∧ H.CT2 = CT2 ∧ HostGood s C8 4 c6 Cb H q0 ∧
-          R.toFrame.Shares H.TT (s.x ^ (-1 + s.eps))) → ∀ ψ : PChar, RankWindowsAt ψ δ →
-      (∀ eps : ℝ, 0 < eps → eps < 1 / 52 → ∃ x0 : ℝ, ∀ (s : Scale) (φ : Frame) (H0 : HostAx φ), s.eps = eps → x0 ≤ s.x →
-        s.x ^ (2 + 8 * eps) ≤ (φ.ord : ℝ) → (φ.ord : ℝ) ≤ 2 * s.x ^ (2 + 8 * eps) → φ.o = (Level.cyc ψ).o → KerChi ψ H0.toHostRaw →
-        ∃ (R : Ranks) (h : R.toFrame = φ), RankVal s R ∧ admitted R (h ▸ H0)) →
-      HostExW (3 / 2) (fun _ s R H _ => s.eps < δ → EAtH (Level.cyc ψ) H.toHostRaw H.TT s.x s.eps 4 ∧ VVle H.E R.t (Real.sqrt s.b)) := by
+          R.toFrame.Shares H.TT (s.x ^ (-1 + s.eps))))
+
+local macro "AdmitsRanks(" ψ:term ")" : term =>
+  `((∀ eps : ℝ, 0 < eps → eps < 1 / 52 → ∃ x0 : ℝ, ∀ (s : Scale) (φ : Frame) (H0 : HostAx φ), s.eps = eps → x0 ≤ s.x →
+        s.x ^ (2 + 8 * eps) ≤ (φ.ord : ℝ) → (φ.ord : ℝ) ≤ 2 * s.x ^ (2 + 8 * eps) → φ.o = (Level.cyc $ψ).o → KerChi $ψ H0.toHostRaw →
+        ∃ (R : Ranks) (h : R.toFrame = φ), RankVal s R ∧ admitted R (h ▸ H0)))
+
+theorem UpperTheory.T3.supplyOfAdmOfRankWindowsAtWidth {δ w la : ℝ} (hla : 1 < la) (hlw : la < w) :
+    HostSupply → ∀ ψ : PChar, RankWindowsAtWidth ψ δ w →
+      AdmitsRanks(ψ) →
+      HostExW la (fun _ s R H _ => s.eps < δ → EAtH (Level.cyc ψ) H.toHostRaw H.TT s.x s.eps 4 ∧ VVle H.E R.t (Real.sqrt s.b)) := by
   intro hSup ψ hV hAdm eps heps heps'
   have := ψ.ne
   have hN0 : 0 < ψ.N := Nat.pos_of_ne_zero (NeZero.ne _)
@@ -121,8 +144,8 @@ theorem UpperTheory.T3.supplyOfAdmOfRankWindowsAt {δ : ℝ} :
   obtain ⟨cut, hwinV, hdepth⟩ := hV
   obtain ⟨c, e0, hc, hcOrder, hF⟩ := UpperTheory.Top.fieldChi_bounded ψ
   let need := fun x : ℝ => if eps < δ then 10708 * x ^ rankExponent eps else 0
-  obtain ⟨J, hJ, hwin⟩ := winPairsFor ψ eps c _ need heps heps' (by exact_mod_cast hc)
-    (hwinV.extend QH.pairEx) (by
+  obtain ⟨J, hJ, hwin⟩ := winPairsForWidth ψ eps c w la _ need heps (by exact_mod_cast hc)
+    hla hlw (hwinV.extend (hla.trans hlw) QH.pairEx eps heps heps') (by
       intro k hk hkc
       by_cases hsmall : eps < δ
       · simpa [need, hsmall] using
@@ -233,30 +256,22 @@ theorem UpperTheory.T3.supplyOfAdmOfRankWindowsAt {δ : ℝ} :
       simpa [need, rankExponent, hs, (hs ▸ hsmall : eps < δ)] using rank_window_bound hRV
     · rw [Formalism.BasicNotions.Scale.b, Formalism.BasicNotions.Scale.L, hs]
 
+theorem UpperTheory.T3.supplyOfAdmOfRankWindowsAt {δ : ℝ} :
+    HostSupply → ∀ ψ : PChar, RankWindowsAt ψ δ →
+      AdmitsRanks(ψ) →
+      HostExW (3 / 2) (fun _ s R H _ => s.eps < δ → EAtH (Level.cyc ψ) H.toHostRaw H.TT s.x s.eps 4 ∧ VVle H.E R.t (Real.sqrt s.b)) :=
+  UpperTheory.T3.supplyOfAdmOfRankWindowsAtWidth (w := 2) (la := 3 / 2) (by norm_num) (by norm_num)
+
 theorem UpperTheory.T3.supplyOfAdmOfCofinal :
-    (∀ eps C0 : ℝ, 0 < eps → eps < 1 / 52 → 1 ≤ C0 → ∃ CT2 C8 c6 Cb x0 : ℝ, C0 ≤ C8 ∧ 0 < c6 ∧ 0 < Cb ∧
-      ∀ (s : Scale) (R : Ranks) (H0 : HostAx R.toFrame) (M : ℕ) (Y : ℝ), s.eps = eps → x0 ≤ s.x → RankVal s R →
-        s.J ≤ C0 → (R.o : ℝ) ≤ C0 → (H0.QS : ℝ) ≤ C0 * R.n → 0 < M → (M : ℝ) ≤ C0 → H0.QS ∣ Nat.lcm (2 ^ (R.e + 2)) M →
-        PairWin s Y → PairGood M eps Y s.x H0.q H0.d → FieldRows H0.toHostRaw ⌊Y ^ (eps / 5)⌋₊ → admitted R H0 →
-        ∃ (H : Host R) (q0 : ℕ), H.toHostAx = H0 ∧ H.CT2 = CT2 ∧ HostGood s C8 4 c6 Cb H q0 ∧
-          R.toFrame.Shares H.TT (s.x ^ (-1 + s.eps))) → ∀ ψ : PChar, CofinalVWinAt ψ 401 →
-      (∀ eps : ℝ, 0 < eps → eps < 1 / 52 → ∃ x0 : ℝ, ∀ (s : Scale) (φ : Frame) (H0 : HostAx φ), s.eps = eps → x0 ≤ s.x →
-        s.x ^ (2 + 8 * eps) ≤ (φ.ord : ℝ) → (φ.ord : ℝ) ≤ 2 * s.x ^ (2 + 8 * eps) → φ.o = (Level.cyc ψ).o → KerChi ψ H0.toHostRaw →
-        ∃ (R : Ranks) (h : R.toFrame = φ), RankVal s R ∧ admitted R (h ▸ H0)) →
+    HostSupply → ∀ ψ : PChar, CofinalVWinAt ψ 401 →
+      AdmitsRanks(ψ) →
       HostExW (3 / 2) (fun _ s R H _ => EAtH (Level.cyc ψ) H.toHostRaw H.TT s.x s.eps 4 ∧ VVle H.E R.t (Real.sqrt s.b)) := by
   intro hSup ψ hV hAdm
   simpa only [Scale.eps_lt, true_implies] using
     UpperTheory.T3.supplyOfAdmOfRankWindowsAt hSup ψ hV.rankWindows hAdm
 
 theorem UpperTheory.T3.supplyOfAdmOf :
-    (∀ eps C0 : ℝ, 0 < eps → eps < 1 / 52 → 1 ≤ C0 → ∃ CT2 C8 c6 Cb x0 : ℝ, C0 ≤ C8 ∧ 0 < c6 ∧ 0 < Cb ∧
-      ∀ (s : Scale) (R : Ranks) (H0 : HostAx R.toFrame) (M : ℕ) (Y : ℝ), s.eps = eps → x0 ≤ s.x → RankVal s R →
-        s.J ≤ C0 → (R.o : ℝ) ≤ C0 → (H0.QS : ℝ) ≤ C0 * R.n → 0 < M → (M : ℝ) ≤ C0 → H0.QS ∣ Nat.lcm (2 ^ (R.e + 2)) M →
-        PairWin s Y → PairGood M eps Y s.x H0.q H0.d → FieldRows H0.toHostRaw ⌊Y ^ (eps / 5)⌋₊ → admitted R H0 →
-        ∃ (H : Host R) (q0 : ℕ), H.toHostAx = H0 ∧ H.CT2 = CT2 ∧ HostGood s C8 4 c6 Cb H q0 ∧
-          R.toFrame.Shares H.TT (s.x ^ (-1 + s.eps))) → ∀ ψ : PChar, VWinAt ψ 401 →
-      (∀ eps : ℝ, 0 < eps → eps < 1 / 52 → ∃ x0 : ℝ, ∀ (s : Scale) (φ : Frame) (H0 : HostAx φ), s.eps = eps → x0 ≤ s.x →
-        s.x ^ (2 + 8 * eps) ≤ (φ.ord : ℝ) → (φ.ord : ℝ) ≤ 2 * s.x ^ (2 + 8 * eps) → φ.o = (Level.cyc ψ).o → KerChi ψ H0.toHostRaw →
-        ∃ (R : Ranks) (h : R.toFrame = φ), RankVal s R ∧ admitted R (h ▸ H0)) →
+    HostSupply → ∀ ψ : PChar, VWinAt ψ 401 →
+      AdmitsRanks(ψ) →
       HostExW (3 / 2) (fun _ s R H _ => EAtH (Level.cyc ψ) H.toHostRaw H.TT s.x s.eps 4 ∧ VVle H.E R.t (Real.sqrt s.b)) :=
   fun hSup ψ hV => UpperTheory.T3.supplyOfAdmOfCofinal hSup ψ hV.cofinal

@@ -45,12 +45,16 @@ def ThinH : Prop :=
 theorem PairGood.mono {M : ℕ} {eps Y X X' : ℝ} {q d : ℕ} (h : PairGood M eps Y X q d) (hX : X' ≤ X) : PairGood M eps Y X' q d :=
   ⟨h.pair, h.coprime, fun ξ i j hij N _ χ hχ y a b => h.bounds ξ i j hij N χ hχ y a (b.trans hX), h.boxes⟩
 
-def JointWindowAt (ψ : PChar) (eps : ℝ) (cut : ℝ → ℝ) : Prop :=
+/-- A jointly good character window at epsilon `eps`, of power width `w`. -/
+def JointWindowAtWidth (ψ : PChar) (eps w : ℝ) (cut : ℝ → ℝ) : Prop :=
   ∃ J : ℝ, 1 ≤ J ∧
     ∀ A : ℝ, ∃ X ≥ A, ∃ q d : ℕ, PairGood ψ.N eps (X ^ (1 / J)) X q d ∧
-      ∃ Y : ℝ, X ^ (1 / J) ≤ Y ∧ Y ^ (2 : ℝ) ≤ X ∧ ∀ x : ℝ, Y ≤ x → x ≤ Y ^ (2 : ℝ) →
+      ∃ Y : ℝ, X ^ (1 / J) ≤ Y ∧ Y ^ w ≤ X ∧ ∀ x : ℝ, Y ≤ x → x ≤ Y ^ w →
         ∃ e : ℕ, PageN eps x e ∧ ∀ (E : Type) [Field E] [NumberField E],
           IsChiField ψ e q d E → VVle E ⌊cut x⌋₊ (Real.sqrt (Real.exp (x ^ eps)))
+
+def JointWindowAt (ψ : PChar) (eps : ℝ) (cut : ℝ → ℝ) : Prop :=
+  JointWindowAtWidth ψ eps 2 cut
 
 /-- One prime pair at each retained scale suffices, provided it meets both the
 arithmetic and the window conditions. These witnesses cannot be chosen separately. -/
@@ -58,8 +62,11 @@ def JointVWinFor (ψ : PChar) (cut : ℝ → ℝ → ℝ) : Prop :=
   ∀ eps : ℝ, 0 < eps → eps < 1 / 52 → JointWindowAt ψ eps (cut eps)
 
 /-- Only sufficiently small positive ε are needed for the analytic conclusion. -/
+def JointVWinBelowWidth (ψ : PChar) (δ w : ℝ) (cut : ℝ → ℝ → ℝ) : Prop :=
+  ∀ eps : ℝ, 0 < eps → eps < 1 / 52 → eps < δ → JointWindowAtWidth ψ eps w (cut eps)
+
 def JointVWinBelow (ψ : PChar) (δ : ℝ) (cut : ℝ → ℝ → ℝ) : Prop :=
-  ∀ eps : ℝ, 0 < eps → eps < 1 / 52 → eps < δ → JointWindowAt ψ eps (cut eps)
+  JointVWinBelowWidth ψ δ 2 cut
 
 theorem JointVWinBelow.mono {ψ : PChar} {δ δ' : ℝ} {cut : ℝ → ℝ → ℝ}
     (h : JointVWinBelow ψ δ cut) (hle : δ' ≤ δ) : JointVWinBelow ψ δ' cut :=
@@ -89,29 +96,39 @@ theorem CofinalVWinFor.toJoint {ψ : PChar} {cut : ℝ → ℝ → ℝ}
   rw [hpow] at hp
   exact ⟨X, (le_max_left _ _).trans hX, q, d, hp, hv q d hp.pair⟩
 
-/-- When there is no arithmetic cutoff, only the unconditional prime-pair input remains. -/
-theorem jointVWinFor_zero (ψ : PChar) (hP : PairEx) : JointVWinFor ψ (fun _ _ => 0) := by
-  apply CofinalVWinFor.toJoint (hP := hP)
-  intro eps he _
+/-- At depth zero, prime-pair existence supplies any power width greater than one. -/
+theorem jointWindowAtWidth_zero (ψ : PChar) (eps w : ℝ) (he : 0 < eps) (he' : eps < 1 / 52)
+    (hw : 1 < w) (hP : PairEx) : JointWindowAtWidth ψ eps w (fun _ => 0) := by
+  obtain ⟨Y₀, h₀⟩ := hP ψ.N (Nat.pos_of_ne_zero (NeZero.ne _)) eps w he he' hw.le
   obtain ⟨e, hepage⟩ := exists_pageN eps he
-  refine ⟨2, by norm_num, fun A => ?_⟩
-  let X := max A 1
-  have hX : 1 ≤ X := le_max_right _ _
-  have hs : 1 ≤ X ^ (1 / (2 : ℝ)) := Real.one_le_rpow hX (by norm_num)
-  refine ⟨X, le_max_left _ _, fun _ _ _ => ⟨_, le_rfl, ?_, fun x hx _ => ⟨e x, hepage x (hs.trans hx), ?_⟩⟩⟩
-  · rw [← Real.rpow_mul (zero_le_one.trans hX)]
-    norm_num
-  · intro E _ _ _ Ω _ _ _ ld
-    refine ⟨?_, fun S => ?_⟩
-    · simp
-    · simp
+  refine ⟨w, hw.le, fun A => ?_⟩
+  let Y := max A (max 1 Y₀)
+  have hY : 1 ≤ Y := (le_max_left _ _).trans (le_max_right _ _)
+  have hAY : A ≤ Y ^ w := calc
+    A ≤ Y := le_max_left _ _
+    _ = Y ^ (1 : ℝ) := (Real.rpow_one _).symm
+    _ ≤ Y ^ w := Real.rpow_le_rpow_of_exponent_le hY hw.le
+  obtain ⟨q, d, hp⟩ := h₀ Y ((le_max_right _ _).trans (le_max_right _ _))
+  refine ⟨Y ^ w, hAY, q, d, ?_⟩
+  rw [one_div, Real.rpow_rpow_inv (zero_le_one.trans hY) (zero_lt_one.trans hw).ne']
+  refine ⟨hp, Y, le_rfl, le_rfl, fun x hx _ => ⟨e x, hepage x (hY.trans hx), ?_⟩⟩
+  intro E _ _ _ Ω _ _ _ ld
+  exact ⟨by simp, fun S => by simp⟩
 
-theorem JointVWinBelow.extend {ψ : PChar} {δ : ℝ} {cut : ℝ → ℝ → ℝ} (h : JointVWinBelow ψ δ cut)
-    (hP : PairEx) : JointVWinFor ψ (fun eps x => if eps < δ then cut eps x else 0) := by
-  intro eps he he'
+theorem jointVWinFor_zero (ψ : PChar) (hP : PairEx) : JointVWinFor ψ (fun _ _ => 0) :=
+  fun eps he he' => jointWindowAtWidth_zero ψ eps 2 he he' (by norm_num) hP
+
+theorem JointVWinBelowWidth.extend {ψ : PChar} {δ w : ℝ} {cut : ℝ → ℝ → ℝ}
+    (h : JointVWinBelowWidth ψ δ w cut) (hw : 1 < w) (hP : PairEx)
+    (eps : ℝ) (he : 0 < eps) (he' : eps < 1 / 52) :
+    JointWindowAtWidth ψ eps w (fun x => if eps < δ then cut eps x else 0) := by
   by_cases hδ : eps < δ
   · simpa [hδ] using h eps he he' hδ
-  · simpa [hδ] using jointVWinFor_zero ψ hP eps he he'
+  · simpa [hδ] using jointWindowAtWidth_zero ψ eps w he he' hw hP
+
+theorem JointVWinBelow.extend {ψ : PChar} {δ : ℝ} {cut : ℝ → ℝ → ℝ} (h : JointVWinBelow ψ δ cut)
+    (hP : PairEx) : JointVWinFor ψ (fun eps x => if eps < δ then cut eps x else 0) :=
+  JointVWinBelowWidth.extend h (by norm_num) hP
 
 end UpperTheory.Top
 

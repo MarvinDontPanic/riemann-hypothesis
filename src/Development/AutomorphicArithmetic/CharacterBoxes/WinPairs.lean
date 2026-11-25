@@ -22,13 +22,13 @@ end UpperTheory.Top
 
 /-- Transport a character window to host scales once its cutoff eventually covers the
 required depth under the field-order rescaling. -/
-theorem UpperTheory.Top.winPairsFor (ψ : PChar) (eps c : ℝ) (cut : ℝ → ℝ → ℝ) (need : ℝ → ℝ)
-    (heps : 0 < eps) (heps52 : eps < 1 / 52) (hc : 1 ≤ c) (hV : JointVWinFor ψ cut)
+theorem UpperTheory.Top.winPairsForWidth (ψ : PChar) (eps c w la : ℝ) (cut need : ℝ → ℝ)
+    (heps : 0 < eps) (hc : 1 ≤ c) (hla : 1 < la) (hlw : la < w) (hV : JointWindowAtWidth ψ eps w cut)
     (hdom : ∀ k : ℝ, 1 ≤ k → k ^ (2 + 8 * eps) = c →
-      ∃ M : ℝ, ∀ x ≥ M, need (k * x) ≤ cut eps x) :
-    ∃ J : ℝ, 1 ≤ J ∧ ∀ y : ℝ, ∃ Z : ℝ, y ≤ Z ∧ ∀ x : ℝ, Z ≤ x → x ≤ Z ^ ((3 : ℝ) / 2) →
+      ∃ M : ℝ, ∀ x ≥ M, need (k * x) ≤ cut x) :
+    ∃ J : ℝ, 1 ≤ J ∧ ∀ y : ℝ, ∃ Z : ℝ, y ≤ Z ∧ ∀ x : ℝ, Z ≤ x → x ≤ Z ^ la →
       ∃ (Y : ℝ) (q d e : ℕ), WinDatumAt ψ eps J c x Y q d e ⌊need x⌋₊ := by
-  obtain ⟨J, hJ, hX⟩ := hV eps heps heps52
+  obtain ⟨J, hJ, hX⟩ := hV
   have ha : 0 < 2 + 8 * eps := by linarith
   have hc0 : 0 ≤ c := by linarith
   obtain ⟨k, hk1, hka⟩ : ∃ k : ℝ, 1 ≤ k ∧ k ^ (2 + 8 * eps) = c := by
@@ -39,11 +39,14 @@ theorem UpperTheory.Top.winPairsFor (ψ : PChar) (eps c : ℝ) (cut : ℝ → �
   refine ⟨J, hJ, fun y => ?_⟩
   have hJ0 : J ≠ 0 := ne_of_gt (by linarith)
   have hJi : 0 ≤ 1 / J := one_div_nonneg.2 (by linarith)
-  let M := max (max 1 y) (max B (k ^ (3 : ℝ)))
-  have hM1 : 1 ≤ M := (le_max_left 1 y).trans (le_max_left _ _)
-  have hyM : y ≤ M := (le_max_right 1 y).trans (le_max_left _ _)
+  have hgap : 0 < w - la := sub_pos.mpr hlw
+  let K := k ^ (la / (w - la))
+  let M := max y (max B K)
+  have hKM : K ≤ M := (le_max_right _ _).trans (le_max_right _ _)
+  have hM1 : 1 ≤ M := (Real.one_le_rpow hk1 (div_nonneg (zero_lt_one.trans hla).le hgap.le)).trans hKM
+  have hyM : y ≤ M := le_max_left _ _
   have hBM : B ≤ M := (le_max_left _ _).trans (le_max_right _ _)
-  obtain ⟨X, hXM, q, d, hpg, W, hW0, hW2, hWV⟩ := hX (M ^ J)
+  obtain ⟨X, hXM, q, d, hpg, W, hW0, hWw, hWV⟩ := hX (M ^ J)
   have hM0 : 0 ≤ M := by linarith
   have hY0M : M ≤ X ^ (1 / J) := by
     calc M = (M ^ J) ^ (1 / J) := by rw [one_div, Real.rpow_rpow_inv hM0 hJ0]
@@ -51,30 +54,24 @@ theorem UpperTheory.Top.winPairsFor (ψ : PChar) (eps c : ℝ) (cut : ℝ → �
   have hWM : M ≤ W := hY0M.trans hW0
   have hW1 : 1 ≤ W := hM1.trans hWM
   have hWnn : 0 ≤ W := by linarith
-  have hk3 : k ^ (3 : ℝ) ≤ W := ((le_max_right _ _).trans (le_max_right _ _)).trans hWM
-  have hlem : (k * W) ^ ((3 : ℝ) / 2) ≤ W ^ (2 : ℝ) := by
-    have h1 : (k * W) ^ ((3 : ℝ) / 2) = ((k * W) ^ (3 : ℝ)) ^ ((1 : ℝ) / 2) := by
-      rw [← Real.rpow_mul (mul_nonneg hk0 hWnn)]
-      norm_num
-    have h2 : W ^ (2 : ℝ) = (W ^ (4 : ℝ)) ^ ((1 : ℝ) / 2) := by
-      rw [← Real.rpow_mul hWnn]
-      norm_num
-    rw [h1, h2]
-    apply Real.rpow_le_rpow (Real.rpow_nonneg (mul_nonneg hk0 hWnn) _) _ (by norm_num)
-    rw [Real.mul_rpow hk0 hWnn, show (4 : ℝ) = 1 + 3 by norm_num, Real.rpow_add (by linarith : 0 < W),
-      Real.rpow_one]
-    exact mul_le_mul_of_nonneg_right hk3 (Real.rpow_nonneg hWnn _)
+  have hkW : k ^ la ≤ W ^ (w - la) := calc
+    k ^ la = K ^ (w - la) := by rw [← Real.rpow_mul hk0, div_mul_cancel₀ _ hgap.ne']
+    _ ≤ _ := Real.rpow_le_rpow (Real.rpow_nonneg hk0 _) (hKM.trans hWM) hgap.le
+  have hlem : (k * W) ^ la ≤ W ^ w := calc
+    (k * W) ^ la = k ^ la * W ^ la := Real.mul_rpow hk0 hWnn
+    _ ≤ W ^ (w - la) * W ^ la := mul_le_mul_of_nonneg_right hkW (Real.rpow_nonneg hWnn _)
+    _ = W ^ w := by rw [← Real.rpow_add (zero_lt_one.trans_le hW1), sub_add_cancel]
   refine ⟨k * W, hyM.trans (hWM.trans (le_mul_of_one_le_left hWnn hk1)), fun x hZx hxZ => ?_⟩
   have hkpos : 0 < k := by linarith
-  have hxW2 : x ≤ W ^ (2 : ℝ) := hxZ.trans hlem
-  have hxX : x ≤ X := hxW2.trans hW2
+  have hxWw : x ≤ W ^ w := hxZ.trans hlem
+  have hxX : x ≤ X := hxWw.trans hWw
   have hx1 : W ≤ x := (le_mul_of_one_le_left hWnn hk1).trans hZx
   have hx0 : 0 ≤ x := by linarith
   obtain ⟨x', rfl⟩ : ∃ x', x = k * x' := ⟨x / k, by field_simp⟩
   have hWx' : W ≤ x' := le_of_mul_le_mul_left hZx hkpos
   have hx'0 : 0 ≤ x' := hWnn.trans hWx'
   have hx'x : x' ≤ k * x' := le_mul_of_one_le_left hx'0 hk1
-  obtain ⟨e, hpage, hv⟩ := hWV x' hWx' (hx'x.trans hxW2)
+  obtain ⟨e, hpage, hv⟩ := hWV x' hWx' (hx'x.trans hxWw)
   have hpow : (k * x') ^ (2 + 8 * eps) = c * x' ^ (2 + 8 * eps) := by rw [Real.mul_rpow hk0 hx'0, hka]
   refine ⟨X ^ (1 / J), q, d, e, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · exact Real.rpow_le_rpow hx0 hxX hJi
@@ -89,6 +86,14 @@ theorem UpperTheory.Top.winPairsFor (ψ : PChar) (eps c : ℝ) (cut : ℝ → �
     refine (hv E hE).mono ?_ ?_
     · exact Nat.floor_mono (hB x' (hBM.trans (hWM.trans hWx')))
     · exact Real.sqrt_le_sqrt (Real.exp_le_exp.2 (Real.rpow_le_rpow hx'0 hx'x heps.le))
+
+theorem UpperTheory.Top.winPairsFor (ψ : PChar) (eps c : ℝ) (cut : ℝ → ℝ → ℝ) (need : ℝ → ℝ)
+    (heps : 0 < eps) (heps52 : eps < 1 / 52) (hc : 1 ≤ c) (hV : JointVWinFor ψ cut)
+    (hdom : ∀ k : ℝ, 1 ≤ k → k ^ (2 + 8 * eps) = c →
+      ∃ M : ℝ, ∀ x ≥ M, need (k * x) ≤ cut eps x) :
+    ∃ J : ℝ, 1 ≤ J ∧ ∀ y : ℝ, ∃ Z : ℝ, y ≤ Z ∧ ∀ x : ℝ, Z ≤ x → x ≤ Z ^ ((3 : ℝ) / 2) →
+      ∃ (Y : ℝ) (q d e : ℕ), WinDatumAt ψ eps J c x Y q d e ⌊need x⌋₊ :=
+  winPairsForWidth ψ eps c 2 (3 / 2) (cut eps) need heps hc (by norm_num) (by norm_num) (hV eps heps heps52) hdom
 
 theorem UpperTheory.Top.winPairs_of_cofinal :
     ∀ (ψ : PChar) (eps c : ℝ), 0 < eps → eps < 1 / 52 → 1 ≤ c → CofinalVWinAt ψ 401 → PairEx →
