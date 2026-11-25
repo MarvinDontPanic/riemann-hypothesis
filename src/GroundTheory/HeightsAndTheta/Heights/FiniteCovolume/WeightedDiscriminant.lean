@@ -123,7 +123,44 @@ private theorem discriminant_bound_of_weighted {ι : Type*} [Fintype ι] [Nonemp
 /-- Field-only upper bound for the index of a shortest line in a CM lattice. -/
 def discriminantIndexBound (E : Type*) [Field E] [NumberField E] : ℝ :=
   let m := Fintype.card (InfinitePlace E)
-  ((m + 1).factorial : ℝ) / (Real.pi * m) ^ m * Real.sqrt |(discr E : ℝ)|
+  if m = 1 then Real.sqrt (|(discr E : ℝ)| / 3)
+  else ((m + 1).factorial : ℝ) / (Real.pi * m) ^ m * Real.sqrt |(discr E : ℝ)|
+
+/-- Transfer a packing coefficient to the integral basis with its exact weighted covolume. -/
+private theorem discriminant_profile (E : Type*) [Field E] [NumberField E] [IsTotallyComplex E]
+    (h₁ : CoeffLatticeBasis.Statement E) (h₂ : IndexLeDet.Statement E)
+    (h₃ : WeightedNormSq.Statement E) (h₄ : WeightedSpaceDim.Statement E)
+    (h₆ : ∀ [Fact (finrank ℝ (EuclideanSpace ℝ (InfinitePlace E × Fin 2)) = finrank ℚ E)],
+      VolumeFormIntComb.Statement (EuclideanSpace ℝ (InfinitePlace E × Fin 2)) (finrank ℚ E))
+    (c : InfinitePlace E → ℝ) (hc : ∀ w, 0 < c w)
+    (A : AddSubgroup E) (hOA : intSubgroup E ≤ A)
+    (hmin : ∀ a ∈ A, a ≠ 0 → ∑ w, c w ≤ ∑ w, c w * ‖w.embedding a‖ ^ 2)
+    (C : ℝ) (hpack : ∀ [Fact (finrank ℝ (EuclideanSpace ℝ (InfinitePlace E × Fin 2)) = finrank ℚ E)]
+      (o' : Orientation ℝ (EuclideanSpace ℝ (InfinitePlace E × Fin 2)) (Fin (finrank ℚ E)))
+      (b : Fin (finrank ℚ E) → EuclideanSpace ℝ (InfinitePlace E × Fin 2)) (lam : ℝ), 0 < lam →
+      (∀ z : Fin (finrank ℚ E) → ℤ, z ≠ 0 → lam ≤ ‖∑ i, (z i : ℝ) • b i‖) →
+      lam ^ finrank ℚ E ≤ C * |o'.volumeForm b|) :
+    let m := Fintype.card (InfinitePlace E)
+    ((intSubgroup E).relIndex A : ℝ) * (∑ w, c w) ^ m ≤
+      C * ((∏ w, c w) * (2 : ℝ)⁻¹ ^ m * Real.sqrt |(discr E : ℝ)|) := by
+  classical
+  let m := Fintype.card (InfinitePlace E)
+  have hd : finrank ℝ (EuclideanSpace ℝ (InfinitePlace E × Fin 2)) = finrank ℚ E := h₄
+  have : Fact (finrank ℝ (EuclideanSpace ℝ (InfinitePlace E × Fin 2)) = finrank ℚ E) := ⟨hd⟩
+  have hdim : finrank ℚ E = 2 * m := by simpa [m, Fintype.card_prod, Nat.mul_comm] using hd.symm
+  let f := (finBasis ℚ E).indexEquiv (integralBasis E)
+  let e : Fin (finrank ℚ E) ≃ InfinitePlace E × Fin 2 := Fintype.equivOfCardEq (by simpa using hd.symm)
+  let o := (finBasisOfFinrankEq ℝ _ hd).orientation
+  let a : Fin (finrank ℚ E) → 𝓞 E := fun i => RingOfIntegers.basis E (f i)
+  have hco (i) : (a i : E) = integralBasis E (f i) := by rw [integralBasis_apply]
+  have ha : LinearIndependent ℚ (fun i => (a i : E)) := by
+    simp_rw [hco]; exact (integralBasis E).linearIndependent.comp _ f.injective
+  have hFG := fg_of_weighted_minimum h₃ c hc A hmin
+  have hh := WeightedIndexBound.det_profile E h₁ h₂ h₃ h₄ _ hpack h₆ c hc A hOA hFG hmin a ha o
+  simp_rw [hco] at hh
+  rw [weightedEmbed_volume_integralBasis c (fun w => (hc w).le) e f o, hdim, pow_mul,
+    Real.sq_sqrt (Finset.sum_nonneg fun w _ => (hc w).le)] at hh
+  exact hh
 
 /-- The archimedean weights give a stronger index estimate before taking their arithmetic mean. -/
 theorem WeightedIndexBound.discriminant_weights (E : Type*) [Field E] [NumberField E] [IsTotallyComplex E]
@@ -142,24 +179,15 @@ theorem WeightedIndexBound.discriminant_weights (E : Type*) [Field E] [NumberFie
   have hd : finrank ℝ (EuclideanSpace ℝ (InfinitePlace E × Fin 2)) = finrank ℚ E := h₄
   have : Fact (finrank ℝ (EuclideanSpace ℝ (InfinitePlace E × Fin 2)) = finrank ℚ E) := ⟨hd⟩
   have hdim : finrank ℚ E = 2 * m := by simpa [m, Fintype.card_prod, Nat.mul_comm] using hd.symm
-  let f := (finBasis ℚ E).indexEquiv (integralBasis E)
-  let e : Fin (finrank ℚ E) ≃ InfinitePlace E × Fin 2 := Fintype.equivOfCardEq (by simpa using hd.symm)
-  let o := (finBasisOfFinrankEq ℝ _ hd).orientation
-  let a : Fin (finrank ℚ E) → 𝓞 E := fun i => RingOfIntegers.basis E (f i)
-  have hco (i) : (a i : E) = integralBasis E (f i) := by rw [integralBasis_apply]
-  have ha : LinearIndependent ℚ (fun i => (a i : E)) := by
-    simp_rw [hco]; exact (integralBasis E).linearIndependent.comp _ f.injective
   have hpack (o' : Orientation ℝ (EuclideanSpace ℝ (InfinitePlace E × Fin 2)) (Fin (finrank ℚ E)))
       (b : Fin (finrank ℚ E) → EuclideanSpace ℝ (InfinitePlace E × Fin 2)) (lam : ℝ) (hlam : 0 < lam)
       (hm : ∀ z : Fin (finrank ℚ E) → ℤ, z ≠ 0 → lam ≤ ‖∑ i, (z i : ℝ) • b i‖) :
       lam ^ finrank ℚ E ≤ (2 ^ m * ((m+1).factorial : ℝ) / Real.pi ^ m) * |o'.volumeForm b| := by
     rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity), mul_comm]
     exact MinkowskiVolumeForm.blichfeldt_even _ _ m hdim o' b lam hlam hm
-  have hFG := fg_of_weighted_minimum h₃ c hc A hmin
-  have hh := WeightedIndexBound.det_profile E h₁ h₂ h₃ h₄ _ (fun {_} => hpack) h₆ c hc A hOA hFG hmin a ha o
-  simp_rw [hco] at hh
-  rw [weightedEmbed_volume_integralBasis c (fun w => (hc w).le) e f o, hdim, pow_mul,
-    Real.sq_sqrt (Finset.sum_nonneg fun w _ => (hc w).le), div_mul_eq_mul_div, le_div_iff₀ (by positivity)] at hh
+  have hh := discriminant_profile E h₁ h₂ h₃ h₄ h₆ c hc A hOA hmin _ (fun {_} => hpack)
+  dsimp only at hh
+  rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity)] at hh
   change ((intSubgroup E).relIndex A : ℝ) * (Real.pi * ∑ w, c w) ^ m ≤
     (m + 1).factorial * (∏ w, c w) * Real.sqrt |(discr E : ℝ)|
   rw [mul_pow]
@@ -178,8 +206,27 @@ theorem WeightedIndexBound.discriminant (E : Type*) [Field E] [NumberField E] [I
     (A : AddSubgroup E) (hOA : intSubgroup E ≤ A)
     (hmin : ∀ a ∈ A, a ≠ 0 → ∑ w, c w ≤ ∑ w, c w * ‖w.embedding a‖ ^ 2) :
     ((intSubgroup E).relIndex A : ℝ) ≤ discriminantIndexBound E := by
-  exact discriminant_bound_of_weighted c hc _ _ (Real.sqrt_nonneg _)
-    (WeightedIndexBound.discriminant_weights E h₁ h₂ h₃ h₄ h₆ c hc A hOA hmin)
+  classical
+  unfold discriminantIndexBound
+  dsimp only
+  split_ifs with hm
+  · have hd : finrank ℝ (EuclideanSpace ℝ (InfinitePlace E × Fin 2)) = finrank ℚ E := h₄
+    have : Fact (finrank ℝ (EuclideanSpace ℝ (InfinitePlace E × Fin 2)) = finrank ℚ E) := ⟨hd⟩
+    have hd₂ : finrank ℚ E = 2 := by simpa [Fintype.card_prod, hm] using hd.symm
+    have hbound := discriminant_profile E h₁ h₂ h₃ h₄ h₆ c hc A hOA hmin (2 / Real.sqrt 3)
+      (fun {_} o b lam hlam hsep => by
+        rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity), mul_comm]
+        rw [show lam ^ finrank ℚ E = lam ^ 2 by rw [hd₂]]
+        exact MinkowskiVolumeForm.planar _ _ hd₂ o b lam hlam hsep)
+    have hmean := prod_le_mean_pow c (fun w => (hc w).le)
+    simp only [hm, pow_one, Nat.cast_one, div_one] at hbound hmean
+    have hsum : 0 < ∑ w, c w := sum_pos (fun w _ => hc w) univ_nonempty
+    rw [Real.sqrt_div (abs_nonneg _), le_div_iff₀ (by positivity)]
+    apply (le_of_mul_le_mul_right _ hsum)
+    field_simp at hbound
+    nlinarith [mul_le_mul_of_nonneg_right hmean (Real.sqrt_nonneg |(discr E : ℝ)|)]
+  · exact discriminant_bound_of_weighted c hc _ _ (Real.sqrt_nonneg _)
+      (WeightedIndexBound.discriminant_weights E h₁ h₂ h₃ h₄ h₆ c hc A hOA hmin)
 
 end
 end GroundTheory.Heights₂.Heights.FiniteCovolume

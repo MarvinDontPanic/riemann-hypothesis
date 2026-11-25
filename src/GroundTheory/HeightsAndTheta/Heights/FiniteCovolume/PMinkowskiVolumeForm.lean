@@ -2,6 +2,7 @@ module
 
 public import Mathlib
 public import GroundTheory.HeightsAndTheta.Heights.FiniteCovolume.Blichfeldt
+public import GroundTheory.HeightsAndTheta.Heights.FiniteCovolume.PlanarCell
 public import GroundTheory.HeightsAndTheta.Heights.FiniteCovolume.SecondCountableTopologyArchUnitary
 
 @[expose] public section
@@ -149,5 +150,76 @@ theorem MinkowskiVolumeForm.blichfeldt_even [Nontrivial V] (m : ℕ) (heven : d 
   have hm : 0 ≤ (m : ℝ) := Nat.cast_nonneg m
   field_simp at hh
   nlinarith
+
+/-- A positive lower bound can be replaced by an attained minimum. -/
+private theorem exists_shortest_of_gap {V : Type*} [NormedAddCommGroup V] [ProperSpace V]
+    (L : Submodule ℤ V) [DiscreteTopology L] {lam : ℝ} (hlam : 0 < lam)
+    (hmin : ∀ x ∈ L, x ≠ 0 → lam ≤ ‖x‖) (w : V) (hw : w ∈ L) (hw0 : w ≠ 0) :
+    ∃ v ∈ L, v ≠ 0 ∧ lam ≤ ‖v‖ ∧ ∀ x ∈ L, x ≠ 0 → ‖v‖ ≤ ‖x‖ := by
+  let S := (L : Set V) ∩ {x : V | lam ≤ ‖x‖}
+  have hL : IsClosed (L : Set V) := AddSubgroup.isClosed_of_discreteTopology (U := L.toAddSubgroup)
+  have hS : IsClosed S := hL.inter (isClosed_le continuous_const continuous_norm)
+  obtain ⟨v, hv, heq⟩ := hS.exists_infDist_eq_dist ⟨w, hw, hmin w hw hw0⟩ 0
+  refine ⟨v, hv.1, norm_pos_iff.mp (hlam.trans_le hv.2), hv.2, fun x hx hx0 ↦ ?_⟩
+  simpa [heq] using
+    (Metric.infDist_le_dist_of_mem (x := (0 : V)) (show x ∈ S from ⟨hx, hmin x hx hx0⟩))
+
+private theorem exists_plane_isometry_map_norm {V : Type*} [NormedAddCommGroup V] [InnerProductSpace ℝ V]
+    [FiniteDimensional ℝ V] (hd : Module.finrank ℝ V = 2) {u : V} (hu : u ≠ 0) :
+    ∃ e : V ≃ₗᵢ[ℝ] ℂ, e u = (‖u‖ : ℂ) := by
+  let e := (Complex.isometryOfOrthonormal
+    ((stdOrthonormalBasis ℝ V).reindex (finCongr hd))).symm
+  have h : e u ≠ 0 := by simpa using hu
+  let c : Circle := ⟨(‖u‖ : ℂ) / e u, by
+    apply mem_sphere_zero_iff_norm.2
+    rw [norm_div, Complex.norm_real, norm_norm, e.norm_map, div_self (norm_ne_zero_iff.mpr hu)]⟩
+  refine ⟨e.trans (rotation c), ?_⟩
+  change ((‖u‖ : ℂ) / e u) * e u = _
+  exact div_mul_cancel₀ _ h
+
+/-- The sharp planar lattice inequality: the covolume is at least
+`sqrt 3 / 2` times the square of a lower bound for the first minimum. -/
+theorem MinkowskiVolumeForm.planar (hd : d = 2) (o : Orientation ℝ V (Fin d))
+    (b : Fin d → V) (lam : ℝ) (hlam : 0 < lam)
+    (hmin : ∀ z : Fin d → ℤ, z ≠ 0 → lam ≤ ‖∑ i, (z i : ℝ) • b i‖) :
+    Real.sqrt 3 * lam ^ 2 ≤ 2 * |o.volumeForm b| := by
+  classical
+  subst d
+  let _ : MeasurableSpace V := borel V
+  have _ : BorelSpace V := ⟨rfl⟩
+  obtain ⟨B, hF, hcomb⟩ := packingBasis V 2 o b lam hlam hmin
+  obtain ⟨u, hu, hu0, hlamu, hminu⟩ := exists_shortest_of_gap (span ℤ (Set.range B)) hlam hcomb
+    (B 0) (subset_span ⟨0, rfl⟩) (B.ne_zero 0)
+  obtain ⟨e, heu⟩ := exists_plane_isometry_map_norm (V := V) Fact.out hu0
+  let C := B.map e.toLinearEquiv
+  let L := span ℤ (Set.range B)
+  let A := span ℤ (Set.range C)
+  have hmap : L.map (e.toLinearEquiv.restrictScalars ℤ).toLinearMap = A := by
+    dsimp only [L]
+    rw [map_span, ← Set.range_comp]
+    rfl
+  have hreal : (‖u‖ : ℂ) ∈ A := by
+    rw [← hmap, ← heu]
+    exact ⟨u, hu, rfl⟩
+  have hshort : ∀ z ∈ A, z ≠ 0 → ‖u‖ ≤ ‖z‖ := by
+    intro z hz hz0
+    rw [← hmap] at hz
+    obtain ⟨v, hv, rfl⟩ := hz
+    change ‖u‖ ≤ ‖e v‖
+    rw [e.norm_map]
+    exact hminu v hv (fun h => hz0 (by simp [h]))
+  have : Countable A.toAddSubgroup := by
+    change Countable (span ℤ (Set.range C))
+    infer_instance
+  have hp := planar_cell_bound (ZSpan.isAddFundamentalDomain' C volume) (norm_pos_iff.mpr hu0) hreal hshort
+  have he : ZSpan.fundamentalDomain C = e.symm ⁻¹' ZSpan.fundamentalDomain B := by
+    ext z
+    simp only [ZSpan.mem_fundamentalDomain, Set.mem_preimage, C, Basis.map_repr]
+    rfl
+  rw [he, e.symm.measurePreserving.measure_preimage
+    (ZSpan.fundamentalDomain_measurableSet B).nullMeasurableSet, hF] at hp
+  have hbound := (ENNReal.ofReal_le_ofReal_iff (abs_nonneg _)).mp hp
+  have hm := mul_le_mul_of_nonneg_left (pow_le_pow_left₀ hlam.le hlamu 2) (Real.sqrt_nonneg 3)
+  linarith
 
 end GroundTheory.Heights₂.Heights.FiniteCovolume
